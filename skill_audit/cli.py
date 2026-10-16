@@ -205,6 +205,169 @@ def pack_info(pack_yaml: str) -> None:
         console.print(table)
 
 
+@cli.command("risk")
+@click.argument("target", type=click.Path(exists=True))
+def show_risk_heatmap(target: str) -> None:
+    """Evaluate Enterprise Risk Management (ERM) 5x5 Heatmap matrix."""
+    p = Path(target)
+    if p.suffix.lower() in [".yaml", ".yml"]:
+        pack = AuditPack.from_yaml(p)
+    else:
+        engine = AuditEngine()
+        pack = engine.audit(p)
+
+    console.print(f"\n[bold red]🔥 Matriks Risiko 5x5 Enterprise Risk Management (ISO 31000 / COSO ERM)[/]")
+    console.print(f"Penugasan: [bold]{pack.title}[/] (`{pack.audit_ref}`)\n")
+
+    grid = pack.risk_heatmap.get("grid", {})
+    table = Table(title="5x5 Heatmap (Likelihood Y vs Impact X)", border_style="red")
+    table.add_column("Likelihood (Y)", style="bold")
+    table.add_column("1 - Insig", justify="center")
+    table.add_column("2 - Minor", justify="center")
+    table.add_column("3 - Mod", justify="center")
+    table.add_column("4 - Mayor", justify="center")
+    table.add_column("5 - Katas", justify="center")
+
+    l_labels = {5: "5 - Hampir Pasti", 4: "4 - Sering", 3: "3 - Mungkin", 2: "2 - Jarang", 1: "1 - Sangat Jarang"}
+    for l in range(5, 0, -1):
+        row_cells = [l_labels[l]]
+        for i in range(1, 6):
+            f_ids = grid.get(f"{l}_{i}", [])
+            score = l * i
+            if score >= 16:
+                color = "red"
+            elif score >= 10:
+                color = "dark_orange"
+            elif score >= 5:
+                color = "yellow"
+            else:
+                color = "green"
+
+            cell_text = f"[{color}]{', '.join(f_ids) if f_ids else '-'}[/{color}]"
+            row_cells.append(cell_text)
+        table.add_row(*row_cells)
+
+    console.print(table)
+    counts = pack.risk_heatmap.get("zone_counts", {})
+    console.print(
+        f"Zona Risiko: [red]{counts.get('critical_red', 0)} Kritis[/] | "
+        f"[dark_orange]{counts.get('high_amber', 0)} Tinggi[/] | "
+        f"[yellow]{counts.get('medium_yellow', 0)} Sedang[/] | "
+        f"[green]{counts.get('low_green', 0)} Rendah[/]\n"
+    )
+
+
+@cli.command("sod")
+@click.argument("target", type=click.Path(exists=True))
+def check_sod(target: str) -> None:
+    """Analyze Segregation of Duties (SoD) conflicts across signatories and users."""
+    p = Path(target)
+    if p.suffix.lower() in [".yaml", ".yml"]:
+        pack = AuditPack.from_yaml(p)
+    else:
+        engine = AuditEngine()
+        pack = engine.audit(p)
+
+    console.print(f"\n[bold magenta]🛡️ Pengujian Pemisahan Tugas (Segregation of Duties - SoD)[/]")
+    console.print(f"Penugasan: [bold]{pack.title}[/]\n")
+
+    if not pack.sod_conflicts:
+        console.print("[bold green]✓ Tidak ditemukan benturan pemisahan tugas. Struktur peran memadai.[/]")
+        return
+
+    table = Table(title=f"Ditemukan {len(pack.sod_conflicts)} Benturan SoD", border_style="magenta")
+    table.add_column("ID", style="bold")
+    table.add_column("Nama Individu")
+    table.add_column("Peran Saling Bertentangan")
+    table.add_column("Risiko Fraud")
+
+    for s in pack.sod_conflicts:
+        table.add_row(
+            s.conflict_id,
+            f"[bold]{s.individual_name}[/]",
+            f"[red]{s.role_a}[/red] vs [red]{s.role_b}[/red]",
+            s.risk_explanation,
+        )
+    console.print(table)
+
+
+@cli.command("governance")
+@click.argument("target", type=click.Path(exists=True))
+def check_governance(target: str) -> None:
+    """Evaluate Delegation of Authority (DoA) limits and GCG compliance."""
+    p = Path(target)
+    if p.suffix.lower() in [".yaml", ".yml"]:
+        pack = AuditPack.from_yaml(p)
+    else:
+        engine = AuditEngine()
+        pack = engine.audit(p)
+
+    console.print(f"\n[bold blue]🏛️ Evaluasi Tata Kelola Korporasi (GCG) & Batas Wewenang (DoA)[/]")
+    console.print(f"Skor Tata Kelola: [bold {'green' if pack.governance_score >= 80 else 'red'}]{pack.governance_score:.1f}%[/]\n")
+
+    if not pack.doa_violations:
+        console.print("[bold green]✓ Seluruh pengesahan transaksi berada dalam batas wewenang yang sah.[/]")
+        return
+
+    table = Table(title=f"Ditemukan {len(pack.doa_violations)} Pelampauan DoA", border_style="blue")
+    table.add_column("ID", style="bold")
+    table.add_column("Pejabat")
+    table.add_column("Nilai Transaksi", justify="right")
+    table.add_column("Batas Wewenang", justify="right")
+    table.add_column("Pelampauan", justify="right", style="bold red")
+    table.add_column("Dokumen")
+
+    for d in pack.doa_violations:
+        table.add_row(
+            d.violation_id,
+            f"{d.approver_name} ({d.approver_title})",
+            f"Rp {d.transaction_amount:,.0f}",
+            f"Rp {d.authorized_limit:,.0f}",
+            f"+Rp {d.excess_amount:,.0f}",
+            d.document_ref,
+        )
+    console.print(table)
+
+
+@cli.group("framework")
+def framework_group() -> None:
+    """Manage and inspect built-in enterprise audit frameworks and programs."""
+    pass
+
+
+@framework_group.command("list")
+def list_frameworks() -> None:
+    """List all available business process, governance, COSO, and ITGC frameworks."""
+    from skill_audit.knowledge.business_processes import ALL_PROGRAMS
+    from skill_audit.knowledge.governance import GCG_PRINCIPLES
+    from skill_audit.knowledge.internal_controls import COSO_17_PRINCIPLES
+    from skill_audit.knowledge.technical_audit import ITGC_DOMAINS
+
+    table = Table(title="Daftar Kerangka Kerja & Program Audit Terintegrasi", border_style="cyan")
+    table.add_column("Kategori", style="bold")
+    table.add_column("Kode")
+    table.add_column("Nama Program / Framework")
+    table.add_column("Cakupan Prosedur")
+
+    # Business Processes
+    for prog in ALL_PROGRAMS:
+        table.add_row("Proses Bisnis", prog.cycle_code, prog.name, f"{len(prog.procedures)} Titik Kontrol")
+
+    # COSO
+    table.add_row("Pengendalian Internal", "COSO-2013", "COSO Internal Control Integrated Framework", f"{len(COSO_17_PRINCIPLES)} Prinsip")
+
+    # Governance
+    table.add_row("Tata Kelola (GRC)", "GCG-TARIF", "Prinsip Dasar Good Corporate Governance", f"{len(GCG_PRINCIPLES)} Pilar TARIF")
+
+    # ITGC
+    table.add_row("Teknis & IT", "ITGC-ISO27K", "IT General Controls & Cyber Security", f"{len(ITGC_DOMAINS)} Domain ITGC")
+
+    # ERM
+    table.add_row("Manajemen Risiko", "ISO-31000", "Enterprise Risk Management 5x5 Matrix", "5x5 Likelihood x Impact")
+
+    console.print(table)
+
+
 # ======================================================================
 # Internal Helpers
 # ======================================================================

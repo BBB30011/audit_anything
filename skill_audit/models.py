@@ -159,6 +159,178 @@ class Section:
 
 
 # ======================================================================
+# Enterprise Governance, Risk & Internal Control Models
+# ======================================================================
+
+
+@dataclass
+class RiskScore5x5:
+    """Enterprise Risk Management (ISO 31000 / COSO ERM) 5x5 Likelihood x Impact scoring."""
+
+    likelihood: int = 3  # 1 to 5
+    impact: int = 3  # 1 to 5
+    control_effectiveness: float = 0.5  # 0.0 (None) to 1.0 (Flawless)
+
+    @property
+    def inherent_score(self) -> int:
+        return self.likelihood * self.impact
+
+    @property
+    def residual_score(self) -> float:
+        eff = max(0.0, min(1.0, self.control_effectiveness))
+        return round(self.inherent_score * (1.0 - (eff * 0.7)), 1)
+
+    @property
+    def heatmap_zone(self) -> str:
+        score = self.residual_score
+        if score >= 15.0:
+            return "critical_red"
+        elif score >= 10.0:
+            return "high_amber"
+        elif score >= 5.0:
+            return "medium_yellow"
+        else:
+            return "low_green"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "likelihood": self.likelihood,
+            "impact": self.impact,
+            "inherent_score": self.inherent_score,
+            "control_effectiveness": self.control_effectiveness,
+            "residual_score": self.residual_score,
+            "heatmap_zone": self.heatmap_zone,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RiskScore5x5:
+        return cls(
+            likelihood=int(data.get("likelihood", 3)),
+            impact=int(data.get("impact", 3)),
+            control_effectiveness=float(data.get("control_effectiveness", 0.5)),
+        )
+
+
+@dataclass
+class SoDConflict:
+    """Segregation of Duties (SoD) violation across business processes."""
+
+    conflict_id: str
+    individual_name: str
+    role_a: str
+    role_b: str
+    document_refs: list[str] = field(default_factory=list)
+    risk_explanation: str = ""
+    recommendation: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "conflict_id": self.conflict_id,
+            "individual_name": self.individual_name,
+            "role_a": self.role_a,
+            "role_b": self.role_b,
+            "document_refs": self.document_refs,
+            "risk_explanation": self.risk_explanation,
+            "recommendation": self.recommendation,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SoDConflict:
+        return cls(
+            conflict_id=str(data.get("conflict_id", "")),
+            individual_name=str(data.get("individual_name", "")),
+            role_a=str(data.get("role_a", "")),
+            role_b=str(data.get("role_b", "")),
+            document_refs=list(data.get("document_refs", [])),
+            risk_explanation=str(data.get("risk_explanation", "")),
+            recommendation=str(data.get("recommendation", "")),
+        )
+
+
+@dataclass
+class DoAViolation:
+    """Delegation of Authority (DoA) limit exceedance or improper authorization."""
+
+    violation_id: str
+    approver_name: str
+    approver_title: str
+    transaction_amount: float
+    authorized_limit: float
+    document_ref: str
+    notes: str = ""
+
+    @property
+    def excess_amount(self) -> float:
+        return max(0.0, self.transaction_amount - self.authorized_limit)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "violation_id": self.violation_id,
+            "approver_name": self.approver_name,
+            "approver_title": self.approver_title,
+            "transaction_amount": self.transaction_amount,
+            "authorized_limit": self.authorized_limit,
+            "excess_amount": self.excess_amount,
+            "document_ref": self.document_ref,
+            "notes": self.notes,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DoAViolation:
+        return cls(
+            violation_id=str(data.get("violation_id", "")),
+            approver_name=str(data.get("approver_name", "")),
+            approver_title=str(data.get("approver_title", "")),
+            transaction_amount=float(data.get("transaction_amount", 0.0)),
+            authorized_limit=float(data.get("authorized_limit", 0.0)),
+            document_ref=str(data.get("document_ref", "")),
+            notes=str(data.get("notes", "")),
+        )
+
+
+@dataclass
+class ControlEvaluation:
+    """COSO Internal Control testing row (Test of Design & Test of Operating Effectiveness)."""
+
+    control_id: str
+    coso_component: str  # e.g., "Control Activities", "Control Environment"
+    control_title: str
+    control_nature: str = "preventive"  # preventive, detective, corrective
+    control_type: str = "manual"  # manual, automated, it_dependent_manual
+    design_effectiveness: AuditStatus = AuditStatus.PASS
+    operating_effectiveness: AuditStatus = AuditStatus.PASS
+    deficiency_level: str = "None"  # None, Control Deficiency, Significant Deficiency, Material Weakness
+    notes: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "control_id": self.control_id,
+            "coso_component": self.coso_component,
+            "control_title": self.control_title,
+            "control_nature": self.control_nature,
+            "control_type": self.control_type,
+            "design_effectiveness": self.design_effectiveness.value,
+            "operating_effectiveness": self.operating_effectiveness.value,
+            "deficiency_level": self.deficiency_level,
+            "notes": self.notes,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ControlEvaluation:
+        return cls(
+            control_id=str(data.get("control_id", "")),
+            coso_component=str(data.get("coso_component", "")),
+            control_title=str(data.get("control_title", "")),
+            control_nature=str(data.get("control_nature", "preventive")),
+            control_type=str(data.get("control_type", "manual")),
+            design_effectiveness=AuditStatus(data.get("design_effectiveness", "pass")),
+            operating_effectiveness=AuditStatus(data.get("operating_effectiveness", "pass")),
+            deficiency_level=str(data.get("deficiency_level", "None")),
+            notes=str(data.get("notes", "")),
+        )
+
+
+# ======================================================================
 # Findings & Audit Records (5C Standard)
 # ======================================================================
 
@@ -180,9 +352,12 @@ class Finding5C:
     management_response: str = ""
     remediation_deadline_days: int = 30
     tags: list[str] = field(default_factory=list)
+    risk_score: RiskScore5x5 | None = None
+    coso_component: str = ""
+    business_process: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "id": self.id,
             "title": self.title,
             "risk_level": self.risk_level.value,
@@ -196,11 +371,16 @@ class Finding5C:
             "management_response": self.management_response,
             "remediation_deadline_days": self.remediation_deadline_days,
             "tags": self.tags,
+            "coso_component": self.coso_component,
+            "business_process": self.business_process,
         }
+        if self.risk_score:
+            d["risk_score"] = self.risk_score.to_dict()
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Finding5C:
-        return cls(
+        f = cls(
             id=str(data.get("id", "")),
             title=str(data.get("title", "")),
             risk_level=RiskLevel(data.get("risk_level", "medium")),
@@ -214,7 +394,12 @@ class Finding5C:
             management_response=str(data.get("management_response", "")),
             remediation_deadline_days=int(data.get("remediation_deadline_days", 30)),
             tags=list(data.get("tags", [])),
+            coso_component=str(data.get("coso_component", "")),
+            business_process=str(data.get("business_process", "")),
         )
+        if data.get("risk_score"):
+            f.risk_score = RiskScore5x5.from_dict(data["risk_score"])
+        return f
 
 
 @dataclass
@@ -394,6 +579,11 @@ class AuditPack:
     reconciliations: list[ReconciliationItem] = field(default_factory=list)
     metrics: AuditMetric = field(default_factory=AuditMetric)
     action_plan: list[dict[str, Any]] = field(default_factory=list)
+    sod_conflicts: list[SoDConflict] = field(default_factory=list)
+    doa_violations: list[DoAViolation] = field(default_factory=list)
+    control_evaluations: list[ControlEvaluation] = field(default_factory=list)
+    risk_heatmap: dict[str, Any] = field(default_factory=dict)
+    governance_score: float = 100.0
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -412,6 +602,11 @@ class AuditPack:
             "reconciliations": [r.to_dict() for r in self.reconciliations],
             "metrics": self.metrics.to_dict(),
             "action_plan": self.action_plan,
+            "sod_conflicts": [s.to_dict() for s in self.sod_conflicts],
+            "doa_violations": [d.to_dict() for d in self.doa_violations],
+            "control_evaluations": [c.to_dict() for c in self.control_evaluations],
+            "risk_heatmap": self.risk_heatmap,
+            "governance_score": round(self.governance_score, 1),
             "metadata": self.metadata,
         }
 
@@ -432,6 +627,11 @@ class AuditPack:
             reconciliations=[ReconciliationItem.from_dict(r) for r in data.get("reconciliations", [])],
             metrics=AuditMetric.from_dict(data.get("metrics", {})),
             action_plan=list(data.get("action_plan", [])),
+            sod_conflicts=[SoDConflict.from_dict(s) for s in data.get("sod_conflicts", [])],
+            doa_violations=[DoAViolation.from_dict(d) for d in data.get("doa_violations", [])],
+            control_evaluations=[ControlEvaluation.from_dict(c) for c in data.get("control_evaluations", [])],
+            risk_heatmap=dict(data.get("risk_heatmap", {})),
+            governance_score=float(data.get("governance_score", 100.0)),
             metadata=dict(data.get("metadata", {})),
         )
         return pack

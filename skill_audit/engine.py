@@ -8,16 +8,22 @@ from typing import Any
 from skill_audit.analyzers.anomaly import AnomalyDetector
 from skill_audit.analyzers.compliance import ComplianceAnalyzer
 from skill_audit.analyzers.cross_checker import CrossChecker
+from skill_audit.analyzers.governance_checker import GovernanceChecker
 from skill_audit.analyzers.math_checker import MathChecker
+from skill_audit.analyzers.risk_engine import RiskEngine
+from skill_audit.analyzers.sod_checker import SoDChecker
 from skill_audit.generators.llm_client import LLMClient
 from skill_audit.generators.report_gen import ReportGenerator
 from skill_audit.models import (
     AuditDomain,
     AuditMetric,
     AuditPack,
+    ControlEvaluation,
+    DoAViolation,
     Finding5C,
     ReconciliationItem,
     RiskLevel,
+    SoDConflict,
     WorkingPaperRow,
 )
 from skill_audit.parsers import parse_path
@@ -37,11 +43,14 @@ class AuditEngine:
         self.report_gen = ReportGenerator(self.llm)
         self.lead_auditor = lead_auditor
 
-        # Specialized analyzers
+        # Specialized enterprise analyzers
         self.math_checker = MathChecker()
         self.cross_checker = CrossChecker()
         self.anomaly_detector = AnomalyDetector()
         self.compliance_analyzer = ComplianceAnalyzer()
+        self.sod_checker = SoDChecker()
+        self.governance_checker = GovernanceChecker()
+        self.risk_engine = RiskEngine()
 
     def audit(
         self,
@@ -83,14 +92,25 @@ class AuditEngine:
         all_findings.extend(comp_findings)
         all_working_papers.extend(comp_papers)
 
-        # 5. Normalize Finding IDs sequentially
+        # 5. Segregation of Duties (SoD) Conflicts
+        sod_findings, sod_conflicts = self.sod_checker.analyze(documents)
+        all_findings.extend(sod_findings)
+
+        # 6. Corporate Governance & Delegation of Authority (DoA) Limits
+        gov_findings, doa_violations, gov_score = self.governance_checker.analyze(documents)
+        all_findings.extend(gov_findings)
+
+        # 7. Normalize Finding IDs sequentially
         for idx, finding in enumerate(all_findings, 1):
             finding.id = f"FND-{idx:03d}"
 
-        # 6. Compute Quantitative Metrics
+        # 8. Enterprise Risk Management (ERM) 5x5 Heatmap & COSO Mapping
+        heatmap, control_evaluations = self.risk_engine.evaluate_and_enrich(all_findings)
+
+        # 9. Compute Quantitative Metrics
         metrics = self._calculate_metrics(documents, all_findings, comp_score, math_findings)
 
-        # 7. Executive Summary & Action Plan
+        # 10. Executive Summary & Action Plan
         exec_summary = self.report_gen.generate_executive_summary(
             audit_title, documents, all_findings, metrics
         )
@@ -107,6 +127,11 @@ class AuditEngine:
             findings=all_findings,
             working_papers=all_working_papers,
             reconciliations=all_reconciliations,
+            sod_conflicts=sod_conflicts,
+            doa_violations=doa_violations,
+            control_evaluations=control_evaluations,
+            risk_heatmap=heatmap,
+            governance_score=gov_score,
             metrics=metrics,
             action_plan=action_plan,
             metadata={"source_path": str(path_obj.resolve())},

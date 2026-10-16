@@ -1,55 +1,66 @@
 ---
 name: document-auditor
-description: Comprehensive document and audit dossier analyzer. Performs 3-way matching, arithmetic and tax verification, compliance checklist audits, and generates 5C audit findings backed by verbatim evidence quotes.
+description: Comprehensive enterprise auditor across business processes, technical ITGC, corporate governance, COSO internal controls, and ISO 31000 risk management with 3-way matching and 5C findings.
 ---
 
-# Document Auditor — AI Agent Skill
+# Auditor-Anything (Document Auditor) — AI Agent Skill
 
-This skill equips the agent to perform forensic, compliance, and procedural audits on financial dossiers, procurement records, contracts, spreadsheets, and administrative documents.
+This skill equips the AI agent with an enterprise-grade foundation to audit any business process, technical system, governance policy, internal control, or risk management framework.
+
+## 5 Enterprise Audit Pillars
+1. **Business Processes (Proses Bisnis)**:
+   - **Procure-to-Pay (P2P)**: Requisition, vendor bidding, PO, goods receipt (BAST), 3-way matching, payment.
+   - **Order-to-Cash (O2C)**: Sales order, credit limit controls, delivery order, billing, AR aging.
+   - **Record-to-Report (R2R)**: Journal vouchers, subledger-to-GL reconciliations, cut-off testing, bank reconciliations.
+   - **Hire-to-Retire (H2R)**: Headcount approval, payroll calculation, PPh 21 TER, ghost employee prevention.
+2. **Technical & IT Controls (Teknis & ITGC)**:
+   - IT General Controls (ITGC): User Access Reviews, MFA, Change Management (CAB), Backup & Restore drills.
+   - IT Application Controls (ITAC): Automated tolerance matching, input validation, duplicate blocking.
+   - Cryptographic Evidence Integrity: SHA-256 hash digests and immutable audit trail verification.
+3. **Corporate Governance & GRC (Tata Kelola)**:
+   - Good Corporate Governance (GCG) principles: Transparansi, Akuntabilitas, Responsibilitas, Independensi, Kewajaran.
+   - Delegation of Authority (DoA): Enforcement of financial threshold limits per managerial tier.
+   - Anti-Bribery & Ethics: ISO 37001 (SMAP), Conflict of Interest (COI) disclosure, Whistleblowing.
+4. **Internal Controls (Pengendalian Internal — COSO 2013 & SOX 404)**:
+   - 5 COSO Components & 17 Principles evaluation.
+   - Segregation of Duties (SoD): Automated detection of conflicting role combinations.
+   - Test of Design (ToD) & Test of Operating Effectiveness (ToE) evaluation.
+5. **Enterprise Risk Management (Manajemen Risiko — ISO 31000 & COSO ERM)**:
+   - 5x5 Likelihood x Impact scoring (Skor 1-25).
+   - Inherent vs Residual Risk calculation based on control effectiveness.
+   - Interactive 5x5 Risk Heatmap generation (Critical, High, Medium, Low zones).
 
 ## When to Use This Skill
 Activate this skill whenever the user asks to:
-- Audit, verify, or review documents, dossiers, contracts, invoices, or financial records.
-- Conduct 3-Way Matching (reconciling Contract/PO vs BAST/Goods Receipt vs Invoices vs Bank Proofs).
-- Verify mathematical accuracy in tables, tax calculations (PPN 11%, PPh), and totals.
-- Check compliance against procurement regulations (Perpres PBJ), ISO standards, or SOPs.
-- Formulate standard 5C Audit Findings (Condition, Criteria, Cause, Consequence, Recommendation).
-- Generate formal Laporan Hasil Audit (LHA), Kertas Kerja Audit (KKA), or interactive HTML audit dashboards.
+- Audit, inspect, or verify documents, contracts, spreadsheets, transaction logs, or complete dossiers.
+- Reconcile multi-document transactions (3-Way Matching: Contract vs BAST vs Invoice vs Payment).
+- Detect Segregation of Duties (SoD) violations or Delegation of Authority (DoA) limit breaches.
+- Formulate findings adhering to international 5C standards (Condition, Criteria, Cause, Consequence, Recommendation).
+- Generate formal Laporan Hasil Audit (LHA), Kertas Kerja Audit (KKA), or offline HTML dashboards.
 
-## Core Principles & Trust Boundaries
-1. **Zero Hallucination / Verifiable Grounding**:
-   Every audit finding MUST cite the exact document name, section/page locator, and a verbatim quote. Uncited allegations are rejected.
-2. **Standard 5C Audit Structure**:
-   - **Condition (Kondisi)**: Factual reality observed in the document.
-   - **Criteria (Kriteria)**: Applicable legal, policy, or contractual standard.
-   - **Cause (Sebab)**: Root cause why the condition deviated from criteria.
-   - **Consequence (Akibat)**: Financial, legal, or operational impact.
-   - **Recommendation (Rekomendasi)**: Actionable, preventive corrective steps.
-3. **Multi-Way Cross Reconciliation**:
-   Trace values, dates, and parties across the complete dossier:
-   `Contract/PO Date <= Delivery/BAST Date <= Invoice Date <= Payment Date`
+## Core Trust Boundaries
+- **Zero Hallucination Grounding**: Every finding must quote verifiable verbatim source text with exact page/locator coordinates.
+- **Strict 5C Format**: Every issue must have clear Condition, Criteria, Cause, Consequence, and Recommendation.
 
-## Using the CLI Tool
-The repository includes the `skillaudit` CLI:
-
+## CLI Execution
 ```bash
-# 1. Audit a single document
-skillaudit doc path/to/invoice.pdf --format all
+# 1. Audit full dossier with 5-pillar analysis
+skillaudit dossier path/to/dossier_folder/ --format all
 
-# 2. Audit an entire dossier folder or ZIP bundle
-skillaudit dossier path/to/procurement_dossier/ --format all
-
-# 3. Explicit cross-check between specific files
+# 2. Run 3-Way Matching cross-check
 skillaudit cross-check contract.docx bast.pdf invoice.xlsx
 
-# 4. Deterministic quality verification (CI/CD gate)
+# 3. Deterministic CI/CD verification gate
 skillaudit verify output/audit_pack.yaml --strict
 
-# 5. Shareable bundle (Offline interactive HTML + ZIP)
+# 4. Generate shareable offline web report
 skillaudit share output/audit_pack.yaml
 ```
 
-## Reference Documentation
-- Consult `references/5c-audit-finding-methodology.md` for standard 5C writing techniques.
-- Consult `references/3-way-matching-guide.md` for 3-way reconciliation rules.
-- Consult `references/audit-sampling-techniques.md` for sampling methods on large ledgers.
+## Detailed Reference Knowledge
+- Consult `references/coso-internal-controls-guide.md` for COSO 17 Principles and control testing.
+- Consult `references/iso31000-risk-management-guide.md` for 5x5 ERM Heatmap methodology.
+- Consult `references/governance-doa-sod-guide.md` for DoA threshold matrices and SoD conflict rules.
+- Consult `references/business-processes-audit-guide.md` for P2P, O2C, R2R, and H2R audit procedures.
+- Consult `references/itgc-technical-audit-guide.md` for ITGC domains and cryptographic hash validation.
+- Consult `references/5c-audit-finding-methodology.md` for international 5C finding formulation.

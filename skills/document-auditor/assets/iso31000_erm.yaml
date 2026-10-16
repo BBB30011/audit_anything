@@ -1,0 +1,29 @@
+name: "Audit Manajemen Risiko Korporasi (ISO 31000 ERM)"
+description: "Kerangka audit manajemen risiko berbasis ISO 31000 untuk mengevaluasi identifikasi, analisis, evaluasi, dan perlakuan risiko organisasi."
+items:
+  - ref_no: "KKA-ERM-01"
+    title: "Kebijakan & Pernyataan Selera Risiko (Risk Appetite Statement)"
+    criteria: "ISO 31000 Klausul 5.4.2: Dewan Komisaris dan Direksi menetapkan risk appetite dan toleransi risiko organisasi."
+    keywords: ["risk appetite", "selera risiko", "toleransi risiko", "kebijakan risiko"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Pengambilan keputusan strategis tanpa panduan batas risiko yang jelas."
+    recommendation: "Susun Risk Appetite Statement tahunan yang disahkan Dewan Komisaris."
+
+  - ref_no: "KKA-ERM-02"
+    title: "Identifikasi & Register Risiko (Risk Register)"
+    criteria: "ISO 31000 Klausul 6.4.2: Unit kerja memelihara dan memperbarui daftar risiko (Risk Register) komprehensif."
+    keywords: ["risk register", "daftar risiko", "identifikasi risiko", "inherent risk", "residual risk"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Blind spots pada risiko operasional dan finansial yang berpotensi melumpuhkan bisnis."
+    recommendation: "Lakukan pemutakhiran Risk Register secara berkala tiap kuartal."
+
+  - ref_no: "KKA-ERM-03"
+    title: "Matriks 5x5 Penilaian Risiko & Rencana Perlakuan (Risk Treatment Plan)"
+    criteria: "ISO 31000 Klausul 6.4.3 & 6.5: Penilaian kemungkinan dan dampak serta penentuan opsi perlakuan risiko (Mitigasi/Transfer/Hindari/Terima)."
+    keywords: ["perlakuan risiko", "mitigasi", "treatment plan", "action plan", "kri", "indikator risiko"]
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Risiko di zona merah dibiarkan tanpa tindakan mitigasi terukur."
+    recommendation: "Wajibkan rencana aksi mitigasi berbatas waktu untuk seluruh risiko di zona merah dan oranye."

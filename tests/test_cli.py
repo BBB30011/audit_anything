@@ -35,11 +35,13 @@ def test_cli_audit_dossier():
     assert "Ringkasan Hasil Pemeriksaan Audit" in result.output
 
 
-def test_cli_verify():
+def test_cli_verify(tmp_path):
     runner = CliRunner()
-    # First generate pack from examples
-    runner.invoke(cli, ["dossier", "examples/procurement_dossier", "-o", "output_test"])
+    out_dir = tmp_path / "output_test"
+    runner.invoke(cli, ["dossier", "examples/procurement_dossier", "-o", str(out_dir)])
 
-    # Now verify the generated pack
-    packs = list(runner.invoke(cli, ["verify", "output_test/aud_procurement_dossier_01_pack.yaml"]).output)
-    assert len(packs) > 0
+    pack_files = list(out_dir.glob("*_pack.yaml"))
+    assert len(pack_files) > 0
+    res = runner.invoke(cli, ["verify", str(pack_files[0])])
+    assert res.exit_code == 0
+

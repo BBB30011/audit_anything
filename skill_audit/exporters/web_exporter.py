@@ -1,4 +1,4 @@
-"""Single-file offline interactive HTML audit dashboard exporter."""
+"""Single-file offline interactive HTML audit dashboard exporter with 5x5 Heatmap and GRC views."""
 
 from __future__ import annotations
 
@@ -33,6 +33,8 @@ class WebExporter:
                 "cause": f.cause,
                 "consequence": f.consequence,
                 "recommendation": f.recommendation,
+                "coso": f.coso_component or "Control Activities",
+                "process": f.business_process or "Procure-to-Pay",
                 "evidence": [e.to_dict() for e in f.evidence],
             }
             for f in pack.findings
@@ -44,6 +46,36 @@ class WebExporter:
         high_count = pack.metrics.findings_by_risk.get("high", 0)
         med_count = pack.metrics.findings_by_risk.get("medium", 0)
         low_count = pack.metrics.findings_by_risk.get("low", 0)
+
+        # Build 5x5 Heatmap HTML
+        grid = pack.risk_heatmap.get("grid", {}) if pack.risk_heatmap else {}
+        heatmap_html = self._render_heatmap_grid(grid)
+
+        # Build SoD rows
+        sod_rows = ""
+        for s in pack.sod_conflicts:
+            docs = ", ".join(s.document_refs)
+            sod_rows += (
+                f"<tr><td><code>{html.escape(s.conflict_id)}</code></td>"
+                f"<td><b>{html.escape(s.individual_name)}</b></td>"
+                f"<td><span class=\"badge badge-critical\">{html.escape(s.role_a)}</span> vs <span class=\"badge badge-critical\">{html.escape(s.role_b)}</span></td>"
+                f"<td>{html.escape(docs)}</td>"
+                f"<td>{html.escape(s.risk_explanation)}</td>"
+                f"<td>{html.escape(s.recommendation)}</td></tr>"
+            )
+
+        # Build DoA rows
+        doa_rows = ""
+        for d in pack.doa_violations:
+            doa_rows += (
+                f"<tr><td><code>{html.escape(d.violation_id)}</code></td>"
+                f"<td><b>{html.escape(d.approver_name)}</b> ({html.escape(d.approver_title)})</td>"
+                f"<td>Rp {d.transaction_amount:,.0f}</td>"
+                f"<td>Rp {d.authorized_limit:,.0f}</td>"
+                f"<td style=\"color: #ef4444; font-weight: bold;\">+Rp {d.excess_amount:,.0f}</td>"
+                f"<td>{html.escape(d.document_ref)}</td>"
+                f"<td>{html.escape(d.notes)}</td></tr>"
+            )
 
         # Build reconciliation rows
         recon_rows = ""
@@ -83,12 +115,11 @@ class WebExporter:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{html.escape(pack.title)} — Skill-Audit Dashboard</title>
+<title>{html.escape(pack.title)} — Auditor-Anything Dashboard</title>
 <style>
 :root {{
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
-  --bg-card: #1e293b;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --border: #334155;
@@ -101,7 +132,7 @@ class WebExporter:
 }}
 * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
 body {{ background-color: var(--bg-primary); color: var(--text-main); line-height: 1.6; padding: 20px; }}
-.container {{ max-width: 1200px; margin: 0 auto; }}
+.container {{ max-width: 1240px; margin: 0 auto; }}
 header {{ background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }}
 .header-top {{ display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }}
 h1 {{ font-size: 1.8rem; margin-bottom: 8px; color: #fff; }}
@@ -116,7 +147,7 @@ h1 {{ font-size: 1.8rem; margin-bottom: 8px; color: #fff; }}
 .btn:hover {{ opacity: 0.9; }}
 .btn-print {{ background: #475569; }}
 .nav-tabs {{ display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px; padding-bottom: 8px; overflow-x: auto; }}
-.tab-btn {{ background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; font-size: 1rem; cursor: pointer; border-radius: 6px; font-weight: 500; }}
+.tab-btn {{ background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; font-size: 0.95rem; cursor: pointer; border-radius: 6px; font-weight: 500; white-space: nowrap; }}
 .tab-btn.active {{ background: var(--accent); color: white; }}
 .tab-content {{ display: none; }}
 .tab-content.active {{ display: block; }}
@@ -135,11 +166,22 @@ h1 {{ font-size: 1.8rem; margin-bottom: 8px; color: #fff; }}
 .badge-medium {{ background: rgba(245, 158, 11, 0.2); color: #fde047; }}
 .badge-low {{ background: rgba(16, 185, 129, 0.2); color: #86efac; }}
 .badge-pass {{ background: rgba(34, 197, 94, 0.2); color: #86efac; }}
+.badge-neutral {{ background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }}
 .evidence-box {{ background: #0b1120; border-left: 4px solid #38bdf8; padding: 12px 16px; margin-top: 12px; border-radius: 4px; font-size: 0.9rem; color: #cbd5e1; }}
 table {{ width: 100%; border-collapse: collapse; margin-top: 16px; background: var(--bg-secondary); border-radius: 8px; overflow: hidden; }}
 th, td {{ padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9rem; }}
 th {{ background: #182234; color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }}
 tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
+
+/* Heatmap Grid */
+.heatmap-table {{ border-collapse: separate; border-spacing: 4px; width: 100%; max-width: 900px; margin: 20px auto; }}
+.heatmap-cell {{ height: 75px; text-align: center; vertical-align: middle; border-radius: 6px; font-weight: bold; font-size: 0.85rem; color: #fff; cursor: pointer; transition: transform 0.1s; }}
+.heatmap-cell:hover {{ transform: scale(1.03); outline: 2px solid #fff; }}
+.cell-red {{ background: #b91c1c; }}
+.cell-amber {{ background: #c2410c; }}
+.cell-yellow {{ background: #b45309; }}
+.cell-green {{ background: #15803d; }}
+
 @media print {{
   body {{ background: white; color: black; padding: 0; }}
   header, .card, .finding-card, table {{ background: white; border-color: #ccc; color: black; }}
@@ -176,14 +218,14 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
       <div class="card-sub">Standar regulasi & klausul kontrak</div>
     </div>
     <div class="card">
+      <div class="card-label">Tata Kelola & DoA Score</div>
+      <div class="card-value" style="color: {('#22c55e' if pack.governance_score >= 80 else '#f97316')};">{pack.governance_score:.1f}%</div>
+      <div class="card-sub">Kepatuhan batas kewenangan approval</div>
+    </div>
+    <div class="card">
       <div class="card-label">Total Temuan Audit</div>
       <div class="card-value">{pack.metrics.total_findings}</div>
       <div class="card-sub">Kritis: {crit_count} | Tinggi: {high_count} | Sedang: {med_count}</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Akurasi Aritmatika & Pajak</div>
-      <div class="card-value">{pack.metrics.arithmetic_accuracy:.1f}%</div>
-      <div class="card-sub">Pengujian DPP, PPN 11%, dan totalitas</div>
     </div>
     <div class="card">
       <div class="card-label">Grounding Rate (Bukti Riil)</div>
@@ -194,7 +236,9 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
 
   <div class="nav-tabs">
     <button class="tab-btn active" onclick="switchTab('findings')">📋 Temuan Audit ({len(pack.findings)})</button>
+    <button class="tab-btn" onclick="switchTab('heatmap')">🔥 Matriks Risiko 5x5</button>
     <button class="tab-btn" onclick="switchTab('recon')">⚖️ Rekonsiliasi 3-Way ({len(pack.reconciliations)})</button>
+    <button class="tab-btn" onclick="switchTab('governance')">🛡️ Tata Kelola, SoD & DoA ({len(pack.sod_conflicts) + len(pack.doa_violations)})</button>
     <button class="tab-btn" onclick="switchTab('kka')">📑 Kertas Kerja (KKA) ({len(pack.working_papers)})</button>
     <button class="tab-btn" onclick="switchTab('action')">🎯 Rencana Aksi ({len(pack.action_plan)})</button>
     <button class="tab-btn" onclick="switchTab('summary')">📖 Ringkasan Eksekutif</button>
@@ -202,7 +246,7 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
 
   <div id="tab-findings" class="tab-content active">
     <div class="filter-bar">
-      <input type="text" id="searchInput" class="search-input" placeholder="Cari temuan berdasarkan kata kunci, judul, kondisi..." oninput="filterFindings()">
+      <input type="text" id="searchInput" class="search-input" placeholder="Cari temuan berdasarkan kata kunci, judul, kondisi, atau proses..." oninput="filterFindings()">
       <button class="filter-btn active" onclick="setRiskFilter('all', this)">Semua ({len(pack.findings)})</button>
       <button class="filter-btn" onclick="setRiskFilter('critical', this)">Kritis ({crit_count})</button>
       <button class="filter-btn" onclick="setRiskFilter('high', this)">Tinggi ({high_count})</button>
@@ -210,6 +254,16 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
       <button class="filter-btn" onclick="setRiskFilter('low', this)">Rendah ({low_count})</button>
     </div>
     <div id="findingsContainer"></div>
+  </div>
+
+  <div id="tab-heatmap" class="tab-content">
+    <div class="card" style="margin-bottom: 20px;">
+      <h3>Matriks Risiko 5x5 Enterprise Risk Management (ISO 31000 / COSO ERM)</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+        Memetakan probabilitas terjadinya risiko (Likelihood) terhadap besaran kerugian (Impact) serta memperhitungkan efektivitas kontrol penanganan.
+      </p>
+      {heatmap_html}
+    </div>
   </div>
 
   <div id="tab-recon" class="tab-content">
@@ -220,6 +274,28 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
       </thead>
       <tbody>{recon_rows or "<tr><td colspan='4'>Tidak ada rekonsiliasi yang tercatat.</td></tr>"}</tbody>
     </table>
+  </div>
+
+  <div id="tab-governance" class="tab-content">
+    <div class="card" style="margin-bottom: 24px;">
+      <h3>Benturan Pemisahan Tugas (Segregation of Duties - SoD)</h3>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Nama Individu</th><th>Peran Bertentangan</th><th>Dokumen Terkait</th><th>Risiko</th><th>Rekomendasi</th></tr>
+        </thead>
+        <tbody>{sod_rows or "<tr><td colspan='6' style='color: var(--pass);'>🟢 Tidak ditemukan benturan pemisahan tugas (SoD Compliant).</td></tr>"}</tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Pelampauan Batas Kewenangan Otorisasi (Delegation of Authority - DoA)</h3>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Pejabat Penandatangan</th><th>Nilai Transaksi</th><th>Batas Wewenang</th><th>Pelampauan</th><th>Dokumen</th><th>Catatan</th></tr>
+        </thead>
+        <tbody>{doa_rows or "<tr><td colspan='7' style='color: var(--pass);'>🟢 Seluruh transaksi berada dalam batas kewenangan yang sah (DoA Compliant).</td></tr>"}</tbody>
+      </table>
+    </div>
   </div>
 
   <div id="tab-kka" class="tab-content">
@@ -259,10 +335,12 @@ function renderFindings(items) {{
     return;
   }}
   container.innerHTML = items.map(f => `
-    <div class="finding-card ${{f.risk}}">
+    <div class="finding-card ${{f.risk}}" id="${{f.id}}">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <div>
           <span class="badge badge-${{f.risk}}">${{f.risk.toUpperCase()}}</span>
+          <span class="badge badge-neutral" style="margin-left: 6px;">${{f.process}}</span>
+          <span class="badge badge-neutral" style="margin-left: 4px;">COSO: ${{f.coso}}</span>
           <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 8px;"><code>${{f.id}}</code> · ${{f.category}}</span>
         </div>
       </div>
@@ -290,7 +368,7 @@ function filterFindings() {{
   const query = document.getElementById('searchInput').value.toLowerCase();
   const filtered = findingsData.filter(f => {{
     const matchRisk = (activeRisk === 'all' || f.risk === activeRisk);
-    const textCorpus = (f.title + ' ' + f.condition + ' ' + f.criteria + ' ' + f.cause + ' ' + f.consequence + ' ' + f.recommendation + ' ' + f.id).toLowerCase();
+    const textCorpus = (f.title + ' ' + f.condition + ' ' + f.criteria + ' ' + f.cause + ' ' + f.consequence + ' ' + f.recommendation + ' ' + f.id + ' ' + f.process + ' ' + f.coso).toLowerCase();
     const matchQuery = !query || textCorpus.includes(query);
     return matchRisk && matchQuery;
   }});
@@ -317,3 +395,46 @@ renderFindings(findingsData);
 </body>
 </html>
 """
+
+    def _render_heatmap_grid(self, grid: dict[str, list[str]]) -> str:
+        """Render 5x5 HTML table representing Likelihood vs Impact."""
+        # Color mapping for 5x5 cells: (Likelihood, Impact)
+        # Red: (5,5),(5,4),(4,5),(5,3),(3,5),(4,4)
+        def cell_color(l: int, i: int) -> str:
+            score = l * i
+            if score >= 16:
+                return "cell-red"
+            elif score >= 10:
+                return "cell-amber"
+            elif score >= 5:
+                return "cell-yellow"
+            return "cell-green"
+
+        likelihood_labels = {
+            5: "5 - Hampir Pasti",
+            4: "4 - Sering",
+            3: "3 - Mungkin",
+            2: "2 - Jarang",
+            1: "1 - Sangat Jarang",
+        }
+        impact_labels = ["1 - Insignifikan", "2 - Minor", "3 - Moderat", "4 - Mayor", "5 - Katastropik"]
+
+        rows = []
+        for l in range(5, 0, -1):
+            row_html = f"<tr><td style='font-weight: bold; width: 150px;'>{likelihood_labels[l]}</td>"
+            for i in range(1, 6):
+                f_ids = grid.get(f"{l}_{i}", [])
+                cls = cell_color(l, i)
+                items_str = "<br>".join(f"<code>{fid}</code>" for fid in f_ids) if f_ids else f"{l*i}"
+                row_html += f"<td class='heatmap-cell {cls}'>{items_str}</td>"
+            row_html += "</tr>"
+            rows.append(row_html)
+
+        header = "<tr><th>Kemungkinan (Y) \\ Dampak (X)</th>" + "".join(f"<th>{imp}</th>" for imp in impact_labels) + "</tr>"
+
+        return f"""
+        <table class="heatmap-table">
+          <thead>{header}</thead>
+          <tbody>{''.join(rows)}</tbody>
+        </table>
+        """

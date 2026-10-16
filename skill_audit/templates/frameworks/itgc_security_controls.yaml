@@ -1,0 +1,38 @@
+name: "Audit Kontrol Umum Teknologi Informasi (ITGC) & Keamanan Siber"
+description: "Kerangka audit ITGC berbasis ISO 27001, COBIT, dan NIST CSF untuk menguji kontrol akses, manajemen perubahan, operasional, dan backup."
+items:
+  - ref_no: "KKA-ITGC-01"
+    title: "Manajemen Hak Akses & Penonaktifan Akun (User Access Management)"
+    criteria: "ISO 27001 Klausul A.9.2: Pengelolaan hak akses pengguna dan pencabutan akun staf yang resign."
+    keywords: ["akses", "user access", "hak akses", "password", "mfa", "otentikasi"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Akses tidak sah ke data sensitif dan potensi kebocoran data."
+    recommendation: "Terapkan Single Sign-On (SSO) dan proses otomatisasi deprovisioning akun saat mutasi/resign."
+
+  - ref_no: "KKA-ITGC-02"
+    title: "Pemisahan Lingkungan & Manajemen Perubahan (Change Management)"
+    criteria: "ISO 27001 Klausul A.12.1.4: Pemisahan lingkungan development, testing/staging, dan produksi."
+    keywords: ["change request", "cab", "staging", "uat", "production", "deployment"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Perubahan tidak sah pada kode aplikasi produksi dan kegagalan sistem."
+    recommendation: "Wajibkan tiket Change Request dan persetujuan CAB sebelum implementasi rilis produksi."
+
+  - ref_no: "KKA-ITGC-03"
+    title: "Pencadangan Data Otomatis & Uji Pemulihan (Backup & Disaster Recovery)"
+    criteria: "ISO 27001 Klausul A.12.3: Pencadangan berkala dan pengujian pemulihan data secara periodik."
+    keywords: ["backup", "cadangan", "restore", "pemulihan", "disaster recovery", "rpo", "rto"]
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Kehilangan data permanen saat terjadi ransomware atau bencana fisik."
+    recommendation: "Jadwalkan backup terenkripsi harian dan simulasi restore drill tiap 6 bulan."
+
+  - ref_no: "KKA-ITGC-04"
+    title: "Pencatatan Log Audit & Perlindungan Integritas (Audit Logging & Monitoring)"
+    criteria: "ISO 27001 Klausul A.12.4: Pencatatan aktivitas pengguna, log kesalahan, dan sinkronisasi waktu NTP."
+    keywords: ["log", "audit trail", "monitoring", "ntp", "timestamp", "integritas"]
+    mandatory: true
+    risk_level: "medium"
+    consequence: "Ketiadaan jejak digital untuk investigasi insiden keamanan siber."
+    recommendation: "Pindahkan audit log ke SIEM terpusat dengan sifat Write-Once Read-Many (WORM)."

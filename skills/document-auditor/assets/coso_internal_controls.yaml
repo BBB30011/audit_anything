@@ -1,0 +1,56 @@
+name: "Audit Pengendalian Internal Berbasis COSO 2013"
+description: "Kerangka audit komprehensif menguji 5 komponen dan 17 prinsip COSO Internal Control Integrated Framework."
+items:
+  - ref_no: "KKA-COSO-01"
+    title: "Lingkungan Pengendalian: Kode Etik & Pakta Integritas (Prinsip 1)"
+    criteria: "COSO Prinsip 1: Organisasi wajib menegakkan komitmen terhadap integritas dan nilai-nilai etika."
+    keywords: ["integritas", "etika", "kode etik", "pakta integritas", "benturan kepentingan"]
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Ketiadaan komitmen etika membuka celah korupsi dan fraud internal."
+    recommendation: "Wajibkan penandatanganan pakta integritas dan sosialisasi kode etik rutin."
+
+  - ref_no: "KKA-COSO-02"
+    title: "Lingkungan Pengendalian: Batas Kewenangan Otorisasi / DoA (Prinsip 3)"
+    criteria: "COSO Prinsip 3: Manajemen menetapkan batas kewenangan dan garis pelaporan yang jelas."
+    keywords: ["otorisasi", "kewenangan", "approval", "disetujui oleh", "delegation of authority"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Penyalahgunaan wewenang dan transaksi ultra vires."
+    recommendation: "Tegakkan matriks batas otorisasi (DoA) dan tolak persetujuan yang melampaui limit."
+
+  - ref_no: "KKA-COSO-03"
+    title: "Penilaian Risiko: Identifikasi & Mitigasi Risiko Fraud (Prinsip 8)"
+    criteria: "COSO Prinsip 8: Organisasi secara eksplisit mempertimbangkan potensi kecurangan dalam menilai risiko."
+    keywords: ["fraud", "kecurangan", "anomali", "risk assessment", "profil risiko"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Kerugian finansial dan kegagalan deteksi dini kecurangan."
+    recommendation: "Lakukan Fraud Risk Assessment tahunan pada area pengadaan dan pencairan kas."
+
+  - ref_no: "KKA-COSO-04"
+    title: "Aktivitas Pengendalian: Pemisahan Tugas / SoD (Prinsip 10 & 12)"
+    criteria: "COSO Prinsip 10: Pemisahan fungsi otorisasi, pencatatan, dan penyimpanan aset secara independen."
+    keywords: ["pemisahan tugas", "segregation of duties", "pemeriksa barang", "panitia penerima"]
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Timbulnya benturan kepentingan dan penyembunyian transaksi fiktif."
+    recommendation: "Pisahkan fungsi pembuat komitmen, pemeriksa barang BAST, dan verifikator tagihan."
+
+  - ref_no: "KKA-COSO-05"
+    title: "Informasi & Komunikasi: Kualitas Dokumen Sumber & Verifikasi Pajak (Prinsip 13)"
+    criteria: "COSO Prinsip 13: Manajemen memanfaatkan informasi yang akurat, lengkap, dan tepat waktu."
+    keywords: ["faktur pajak", "faktur", "e-faktur", "npwp", "bukti potong"]
+    mandatory: true
+    risk_level: "medium"
+    consequence: "Kesalahan pencatatan pembukuan dan sanksi perpajakan."
+    recommendation: "Pastikan seluruh bukti pendukung transaksi terverifikasi keabsahannya."
+
+  - ref_no: "KKA-COSO-06"
+    title: "Pemantauan: Audit Trail & Tindak Lanjut Rekomendasi (Prinsip 16 & 17)"
+    criteria: "COSO Prinsip 16 & 17: Evaluasi berkala untuk memastikan pengendalian berjalan efektif."
+    keywords: ["audit", "evaluasi", "rekomendasi", "pemantauan", "tindak lanjut"]
+    mandatory: false
+    risk_level: "low"
+    consequence: "Kelemahan kontrol berulang tanpa ada tindakan korektif manajemen."
+    recommendation: "Tinjau status tindak lanjut temuan audit secara triwulanan."

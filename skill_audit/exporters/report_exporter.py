@@ -72,7 +72,34 @@ class ReportExporter:
             "",
             "---",
             "",
-            "## 4. DAFTAR TEMUAN AUDIT (STANDAR 5C)",
+            "## 4. TATA KELOLA KORPORASI (GCG), SoD & BATAS KEWENANGAN (DoA)",
+        ])
+
+        if pack.sod_conflicts:
+            lines.append("### 4.1 Benturan Pemisahan Tugas (Segregation of Duties - SoD)")
+            lines.append("| ID | Nama Individu | Peran Bertentangan | Dokumen Terkait | Risiko Fraud |")
+            lines.append("|:---:|:---|:---|:---|:---|")
+            for s in pack.sod_conflicts:
+                lines.append(f"| `{s.conflict_id}` | **{s.individual_name}** | {s.role_a} vs {s.role_b} | {', '.join(s.document_refs)} | {s.risk_explanation} |")
+            lines.append("")
+        else:
+            lines.append("> 🟢 **Pemisahan Tugas (SoD) Memadai:** Tidak ditemukan perangkapan peran bertentangan dalam berkas.\n")
+
+        if pack.doa_violations:
+            lines.append("### 4.2 Pelampauan Batas Kewenangan Otorisasi (DoA)")
+            lines.append("| ID | Pejabat Penandatangan | Nilai Transaksi | Batas Maksimum | Pelampauan | Dokumen |")
+            lines.append("|:---:|:---|:---:|:---:|:---:|:---|")
+            for d in pack.doa_violations:
+                lines.append(f"| `{d.violation_id}` | **{d.approver_name}** ({d.approver_title}) | Rp {d.transaction_amount:,.0f} | Rp {d.authorized_limit:,.0f} | **+Rp {d.excess_amount:,.0f}** | `{d.document_ref}` |")
+            lines.append("")
+        else:
+            lines.append("> 🟢 **Batas Otorisasi (DoA) Sesuai:** Seluruh pengesahan berada dalam batas kewenangan yang sah.\n")
+
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 5. DAFTAR TEMUAN AUDIT (STANDAR 5C)",
         ])
 
         if not pack.findings:
@@ -85,7 +112,7 @@ class ReportExporter:
             "",
             "---",
             "",
-            "## 5. RENCANA AKSI & MATRIKS TINDAK LANJUT",
+            "## 6. RENCANA AKSI & MATRIKS TINDAK LANJUT",
             "| No | ID Temuan | Prioritas | Langkah Perbaikan yang Diperlukan | Batas Waktu | PIC |",
             "|:---:|:---:|:---:|:---|:---:|:---|",
         ])
@@ -146,6 +173,16 @@ class ReportExporter:
             f"### [{f.id}] {f.title}",
             f"- **Tingkat Risiko:** {risk_pill}",
             f"- **Kategori Pengujian:** `{f.category}`",
+            f"- **Proses Bisnis:** `{f.business_process or 'Procure-to-Pay'}` | **Komponen COSO:** `{f.coso_component or 'Control Activities'}`",
+        ]
+
+        if f.risk_score:
+            out.append(
+                f"- **Skor ERM (5x5):** Likelihood={f.risk_score.likelihood}, Impact={f.risk_score.impact} "
+                f"(Inherent: {f.risk_score.inherent_score}, Residual: {f.risk_score.residual_score:.1f}, Zona: `{f.risk_score.heatmap_zone.upper()}`)"
+            )
+
+        out.extend([
             "",
             f"#### A. Kondisi (Condition)",
             f"{f.condition}",
@@ -162,7 +199,7 @@ class ReportExporter:
             f"#### E. Rekomendasi Perbaikan (Recommendation)",
             f"{f.recommendation}",
             "",
-        ]
+        ])
 
         if f.evidence:
             out.append("#### Bukti Terverifikasi (Verified Source Citations):")
