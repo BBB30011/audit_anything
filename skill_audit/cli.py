@@ -14,14 +14,21 @@ from rich.panel import Panel
 from rich.table import Table
 
 from skill_audit.engine import AuditEngine
+from skill_audit.evidence_bundle import (
+    create_evidence_bundle,
+    export_evidence_bundle_zip,
+    verify_evidence_bundle,
+)
 from skill_audit.exporters import (
     CSVExporter,
     ReportExporter,
     SkillExporter,
     WebExporter,
 )
-from skill_audit.models import AuditDomain, AuditPack, RiskLevel
+from skill_audit.models import AuditDomain, AuditPack, HumanSignOff, RiskLevel, UnknownStatus
+from skill_audit.triage import run_interactive_triage
 from skill_audit.validation import validate_audit_pack
+
 
 console = Console()
 
@@ -368,6 +375,213 @@ def list_frameworks() -> None:
     console.print(table)
 
 
+@cli.command("unknowns")
+@click.argument("target", type=click.Path(exists=True))
+def list_unknowns(target: str) -> None:
+    """Inspect the REA Unknowns & Inquiries Ledger (evidentiary gaps)."""
+    p = Path(target)
+    if p.suffix.lower() in [".yaml", ".yml"]:
+        pack = AuditPack.from_yaml(p)
+    else:
+        engine = AuditEngine()
+        pack = engine.audit(p)
+
+    console.print(f"\n[bold yellow]❓ Buku Besar Pertanyaan Terbuka & Ambiguitas Bukti (Ledger of Unknowns)[/]")
+    console.print(f"Penugasan: [bold]{pack.title}[/] (`{pack.audit_ref}`)\n")
+
+    if not pack.unknowns:
+        console.print("[bold green]✓ Tidak ada pertanyaan menggantung. Seluruh bukti lengkap.[/]")
+        return
+
+    table = Table(title=f"Ditemukan {len(pack.unknowns)} Inquiry / Pertanyaan Terbuka", border_style="yellow")
+    table.add_column("ID", style="bold")
+    table.add_column("Pertanyaan & Ambiguitas Bukti")
+    table.add_column("Kategori")
+    table.add_column("Status", justify="center")
+    table.add_column("Bukti yang Dibutuhkan")
+
+    for u in pack.unknowns:
+        st_color = "green" if u.status == UnknownStatus.RESOLVED else ("yellow" if u.status == UnknownStatus.OPEN else "dim")
+        table.add_row(
+            u.id,
+            f"[bold]{u.question}[/]",
+            u.category,
+            f"[{st_color}]{u.status.value.upper()}[/{st_color}]",
+            u.evidence_required,
+        )
+    console.print(table)
+
+
+@cli.command("resolve-unknown")
+@click.argument("pack_path", type=click.Path(exists=True))
+@click.option("--id", "unknown_id", required=True, help="ID of the unknown item to resolve (e.g. UNK-01).")
+@click.option("--notes", required=True, help="Resolution rationale or explanation from management.")
+@click.option("--evidence", default="", help="Reference document or citation supporting resolution.")
+@click.option("--auditor", default="Lead Auditor", help="Name of the resolving auditor.")
+def resolve_unknown_cmd(pack_path: str, unknown_id: str, notes: str, evidence: str, auditor: str) -> None:
+    """Resolve an open audit unknown in the pack with evidence and rationale."""
+    p = Path(pack_path)
+    pack = AuditPack.from_yaml(p)
+
+    target_u = next((u for u in pack.unknowns if u.id.upper() == unknown_id.upper()), None)
+    if not target_u:
+        console.print(f"[bold red]Error: Unknown with ID {unknown_id} not found in {pack_path}[/]")
+        sys.exit(1)
+
+    target_u.status = UnknownStatus.RESOLVED
+    target_u.resolution_notes = notes
+    target_u.evidence_ref = evidence
+    target_u.resolved_by = auditor
+    pack.to_yaml(p)
+    console.print(f"[bold green]✓ Berhasil menyelesaikan {unknown_id}![/]")
+    console.print(f"  • Keterangan : {notes}")
+    console.print(f"  • Bukti      : {evidence or 'Klarifikasi Manajemen'}")
+    console.print(f"  • Disimpan ke: {p}")
+
+
+@cli.command("obligations")
+@click.argument("target", type=click.Path(exists=True))
+def list_obligations(target: str) -> None:
+    """Evaluate audit obligations and standards compliance coverage."""
+    p = Path(target)
+    if p.suffix.lower() in [".yaml", ".yml"]:
+        pack = AuditPack.from_yaml(p)
+    else:
+        engine = AuditEngine()
+        pack = engine.audit(p)
+
+    console.print(f"\n[bold cyan]🛡️ Evaluasi Pemenuhan Kewajiban Audit (Audit Obligations & Coverage)[/]")
+    console.print(f"Penugasan: [bold]{pack.title}[/] (`{pack.audit_ref}`)\n")
+
+    table = Table(title="Ketercakupan Kewajiban Audit & Kerangka Regulasi", border_style="cyan")
+    table.add_column("ID", style="bold")
+    table.add_column("Prosedur Standar Audit")
+    table.add_column("Dasar Regulasi")
+    table.add_column("Status", justify="center")
+    table.add_column("Catatan Pengujian")
+
+    satisfied_count = sum(1 for o in pack.obligations if o.status == "satisfied")
+    for o in pack.obligations:
+        st_color = "green" if o.status == "satisfied" else ("red" if o.status == "violated" else "yellow")
+        table.add_row(
+            o.id,
+            f"[bold]{o.title}[/]",
+            o.standard_ref,
+            f"[{st_color}]{o.status.upper()}[/{st_color}]",
+            o.coverage_notes,
+        )
+    console.print(table)
+    cov_pct = (satisfied_count / len(pack.obligations) * 100.0) if pack.obligations else 100.0
+    console.print(f"Tingkat Pemenuhan: [bold {'green' if cov_pct >= 80 else 'yellow'}]{cov_pct:.1f}%[/] ({satisfied_count}/{len(pack.obligations)} terpenuhi)\n")
+
+
+@cli.command("bundle")
+@click.argument("pack_or_dossier", type=click.Path(exists=True))
+@click.option("--output", "-o", default=None, help="Output path for evidence bundle ZIP.")
+def export_bundle_cmd(pack_or_dossier: str, output: str | None) -> None:
+    """Export standalone, court-ready cryptographic Evidence Bundle ZIP archive."""
+    p = Path(pack_or_dossier)
+    if p.suffix.lower() in [".yaml", ".yml"]:
+        pack = AuditPack.from_yaml(p)
+    else:
+        engine = AuditEngine()
+        pack = engine.audit(p)
+
+    out_zip = output or f"{pack.audit_ref.lower().replace('-', '_')}_evidence_bundle.zip"
+    zip_path = export_evidence_bundle_zip(pack, out_zip)
+    console.print(f"[bold green]✓ Berhasil mengekspor Cryptographic Evidence Bundle![/]")
+    console.print(f"  • Berkas ZIP   : [cyan]{zip_path}[/]")
+    console.print(f"  • Bundle ID    : [magenta]{pack.evidence_bundle.get('bundle_id', 'EVD-AUTO')}[/]")
+    console.print(f"  • Total Dokumen: {len(pack.documents)} Berkas dengan SHA-256 Digest")
+
+
+@cli.command("verify-bundle")
+@click.argument("pack_file", type=click.Path(exists=True))
+def verify_bundle_cmd(pack_file: str) -> None:
+    """Forensically verify documents in an audit pack against bundle SHA-256 manifest."""
+    p = Path(pack_file)
+    pack = AuditPack.from_yaml(p)
+
+    console.print(f"\n[bold cyan]🔐 Verifikasi Forensik Integritas Bukti (SHA-256 Tamper Verification)[/]")
+    res = verify_evidence_bundle(pack.evidence_bundle, pack.documents)
+
+    table = Table(title="Hasil Pengujian Integritas Kriptografis Dokumen", border_style="cyan")
+    table.add_column("Nama Dokumen")
+    table.add_column("Status Forensik", justify="center")
+    table.add_column("Catatan / Hash SHA-256")
+
+    for item in res.get("details", []):
+        st = item.get("status")
+        st_color = "green" if st == "VERIFIED_INTACT" else "red"
+        notes = item.get("sha256", item.get("notes", ""))
+        table.add_row(item.get("document", ""), f"[{st_color}]{st}[/{st_color}]", notes)
+
+    console.print(table)
+    if res["verified_intact"]:
+        console.print("[bold green]✓ Seluruh berkas bukti diverifikasi utuh dan tidak mengalami manipulasi (Tamper-Free).[/]\n")
+    else:
+        console.print(f"[bold red]✗ PERINGATAN: Ditemukan {res['tampered_count']} berkas yang tidak cocok dengan digest awal![/]\n")
+        sys.exit(1)
+
+
+@cli.command("triage")
+@click.argument("pack_file", type=click.Path(exists=True))
+def triage_cmd(pack_file: str) -> None:
+    """Start interactive Human-AI collaborative triage and review session."""
+    run_interactive_triage(pack_file)
+
+
+@cli.command("signoff")
+@click.argument("pack_file", type=click.Path(exists=True))
+@click.option("--name", required=True, help="Full name of Lead Auditor.")
+@click.option("--role", default="Lead Internal Auditor", help="Professional role or title.")
+@click.option("--nip", default="", help="Registration / NIP / CPA license number.")
+@click.option(
+    "--opinion",
+    type=click.Choice([
+        "WTP (Wajar Tanpa Pengecualian)",
+        "WDP (Wajar Dengan Pengecualian)",
+        "Tidak Wajar (Adverse)",
+        "Menolak Memberikan Opini (Disclaimer)",
+    ]),
+    default="WDP (Wajar Dengan Pengecualian)",
+    help="Official audit conclusion opinion.",
+)
+@click.option("--notes", default="", help="Auditor final comments or professional judgement.")
+def signoff_cmd(pack_file: str, name: str, role: str, nip: str, opinion: str, notes: str) -> None:
+    """Formally sign-off on an audit pack with professional auditor opinion."""
+    from datetime import datetime, timezone
+
+    p = Path(pack_file)
+    pack = AuditPack.from_yaml(p)
+
+    pack.human_sign_off = HumanSignOff(
+        reviewer_name=name,
+        reviewer_role=role,
+        reviewer_license_or_nip=nip,
+        audit_opinion=opinion,
+        signed_at=datetime.now(timezone.utc).strftime("%d %B %Y, %H:%M UTC"),
+        comments=notes or "Pengesahan formal diterbitkan setelah pengujian kepatuhan dan rekonsiliasi dokumen.",
+        is_signed=True,
+    )
+    pack.to_yaml(p)
+
+    # Re-export HTML and LHA reports to reflect sign-off immediately
+    rep_exp = ReportExporter()
+    web_exp = WebExporter()
+    parent = p.parent
+    base_name = p.stem.replace("_pack", "")
+    rep_exp.export_report(pack, parent / f"{base_name}_Laporan_Hasil_Audit.md")
+    web_exp.export(pack, parent / f"{base_name}_dashboard.html")
+
+    console.print(f"[bold green]✓ Berhasil mengesahkan AuditPack secara resmi![/]")
+    console.print(f"  • Penanggung Jawab : [bold white]{name}[/] ({role})")
+    console.print(f"  • NIP / Lisensi    : {nip or '-'}")
+    console.print(f"  • Opini Audit      : [bold cyan]{opinion}[/]")
+    console.print(f"  • Disimpan ke      : [green]{p}[/]")
+
+
+
 # ======================================================================
 # Internal Helpers
 # ======================================================================
@@ -428,6 +642,12 @@ def _export_deliverables(pack: AuditPack, output_dir: str, fmt: str) -> None:
         skill_exp = SkillExporter()
         skill_path = skill_exp.export(pack, out)
         console.print(f"  • Agent Skill Dir : [magenta]{skill_path}[/]")
+
+    if fmt in ["bundle", "all"]:
+        bundle_zip = out / f"{slug}_evidence_bundle.zip"
+        export_evidence_bundle_zip(pack, bundle_zip)
+        console.print(f"  • Evidence Bundle : [yellow]{bundle_zip}[/]")
+
 
 
 if __name__ == "__main__":

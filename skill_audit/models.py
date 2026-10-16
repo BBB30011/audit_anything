@@ -63,6 +63,13 @@ class AuditStatus(str, Enum):
     INCONCLUSIVE = "inconclusive"
 
 
+class UnknownStatus(str, Enum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    WAIVED = "waived"
+
+
 def slugify(text: str) -> str:
     """Convert arbitrary title into safe filesystem & URL slug."""
     text = text.lower().strip()
@@ -331,6 +338,159 @@ class ControlEvaluation:
 
 
 # ======================================================================
+# REA-Inspired Audit Ledger Models (Unknowns, Obligations, Bundle, Sign-Off)
+# ======================================================================
+
+
+@dataclass
+class UnknownItem:
+    """Audit Inquiries & Unknowns Ledger (inspired by REA unknowns protocol).
+
+    Captures open questions, missing documentation, and evidentiary ambiguities.
+    An audit cannot be marked clean without resolving or formally waiving unknowns.
+    """
+
+    id: str
+    question: str
+    category: str = "General"  # Financial, Documentary, Legal, Compliance, Technical
+    status: UnknownStatus = UnknownStatus.OPEN
+    impact: str = ""
+    evidence_required: str = ""
+    resolution_notes: str = ""
+    resolved_by: str = ""
+    evidence_ref: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "question": self.question,
+            "category": self.category,
+            "status": self.status.value,
+            "impact": self.impact,
+            "evidence_required": self.evidence_required,
+            "resolution_notes": self.resolution_notes,
+            "resolved_by": self.resolved_by,
+            "evidence_ref": self.evidence_ref,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> UnknownItem:
+        return cls(
+            id=str(data.get("id", "")),
+            question=str(data.get("question", "")),
+            category=str(data.get("category", "General")),
+            status=UnknownStatus(data.get("status", "open")),
+            impact=str(data.get("impact", "")),
+            evidence_required=str(data.get("evidence_required", "")),
+            resolution_notes=str(data.get("resolution_notes", "")),
+            resolved_by=str(data.get("resolved_by", "")),
+            evidence_ref=str(data.get("evidence_ref", "")),
+        )
+
+
+@dataclass
+class AuditObligation:
+    """Mandatory Audit Obligation / Criteria Ledger.
+
+    Tracks required audit tests and compliance standards across the engagement.
+    """
+
+    id: str
+    title: str
+    standard_ref: str
+    status: str = "satisfied"  # satisfied, violated, partial, untested
+    coverage_notes: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "standard_ref": self.standard_ref,
+            "status": self.status,
+            "coverage_notes": self.coverage_notes,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AuditObligation:
+        return cls(
+            id=str(data.get("id", "")),
+            title=str(data.get("title", "")),
+            standard_ref=str(data.get("standard_ref", "")),
+            status=str(data.get("status", "satisfied")),
+            coverage_notes=str(data.get("coverage_notes", "")),
+        )
+
+
+@dataclass
+class EvidenceBundleManifest:
+    """Cryptographic Evidence Bundle Manifest (inspired by REA evidence bundles).
+
+    Contains cryptographic SHA-256 digests and provenance metadata of all audited artifacts.
+    """
+
+    bundle_id: str
+    created_at: str
+    files: list[dict[str, Any]] = field(default_factory=list)
+    total_files: int = 0
+    integrity_status: str = "verified_intact"  # verified_intact, compromised
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "bundle_id": self.bundle_id,
+            "created_at": self.created_at,
+            "files": self.files,
+            "total_files": self.total_files,
+            "integrity_status": self.integrity_status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EvidenceBundleManifest:
+        return cls(
+            bundle_id=str(data.get("bundle_id", "")),
+            created_at=str(data.get("created_at", "")),
+            files=list(data.get("files", [])),
+            total_files=int(data.get("total_files", 0)),
+            integrity_status=str(data.get("integrity_status", "verified_intact")),
+        )
+
+
+@dataclass
+class HumanSignOff:
+    """Formal Human Auditor Sign-Off and Professional Judgement Opinion."""
+
+    reviewer_name: str = ""
+    reviewer_role: str = ""
+    reviewer_license_or_nip: str = ""
+    audit_opinion: str = "WTP (Wajar Tanpa Pengecualian)"  # WTP, WDP, Tidak Wajar, Disclaimer
+    signed_at: str = ""
+    comments: str = ""
+    is_signed: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "reviewer_name": self.reviewer_name,
+            "reviewer_role": self.reviewer_role,
+            "reviewer_license_or_nip": self.reviewer_license_or_nip,
+            "audit_opinion": self.audit_opinion,
+            "signed_at": self.signed_at,
+            "comments": self.comments,
+            "is_signed": self.is_signed,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> HumanSignOff:
+        return cls(
+            reviewer_name=str(data.get("reviewer_name", "")),
+            reviewer_role=str(data.get("reviewer_role", "")),
+            reviewer_license_or_nip=str(data.get("reviewer_license_or_nip", "")),
+            audit_opinion=str(data.get("audit_opinion", "WTP (Wajar Tanpa Pengecualian)")),
+            signed_at=str(data.get("signed_at", "")),
+            comments=str(data.get("comments", "")),
+            is_signed=bool(data.get("is_signed", False)),
+        )
+
+
+# ======================================================================
 # Findings & Audit Records (5C Standard)
 # ======================================================================
 
@@ -355,6 +515,8 @@ class Finding5C:
     risk_score: RiskScore5x5 | None = None
     coso_component: str = ""
     business_process: str = ""
+    human_status: str = "pending"  # pending, approved, rejected, adjusted
+    human_notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -373,6 +535,8 @@ class Finding5C:
             "tags": self.tags,
             "coso_component": self.coso_component,
             "business_process": self.business_process,
+            "human_status": self.human_status,
+            "human_notes": self.human_notes,
         }
         if self.risk_score:
             d["risk_score"] = self.risk_score.to_dict()
@@ -396,6 +560,8 @@ class Finding5C:
             tags=list(data.get("tags", [])),
             coso_component=str(data.get("coso_component", "")),
             business_process=str(data.get("business_process", "")),
+            human_status=str(data.get("human_status", "pending")),
+            human_notes=str(data.get("human_notes", "")),
         )
         if data.get("risk_score"):
             f.risk_score = RiskScore5x5.from_dict(data["risk_score"])
@@ -500,6 +666,7 @@ class AuditDocument:
             "doc_type": self.doc_type.value,
             "role_in_dossier": self.role_in_dossier,
             "total_pages_or_sheets": self.total_pages_or_sheets,
+            "content": self.content,
             "entities": self.entities,
             "chunks_count": len(self.chunks),
             "content_length": len(self.content),
@@ -584,6 +751,10 @@ class AuditPack:
     control_evaluations: list[ControlEvaluation] = field(default_factory=list)
     risk_heatmap: dict[str, Any] = field(default_factory=dict)
     governance_score: float = 100.0
+    unknowns: list[UnknownItem] = field(default_factory=list)
+    obligations: list[AuditObligation] = field(default_factory=list)
+    evidence_bundle: dict[str, Any] = field(default_factory=dict)
+    human_sign_off: HumanSignOff = field(default_factory=HumanSignOff)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -607,6 +778,10 @@ class AuditPack:
             "control_evaluations": [c.to_dict() for c in self.control_evaluations],
             "risk_heatmap": self.risk_heatmap,
             "governance_score": round(self.governance_score, 1),
+            "unknowns": [u.to_dict() for u in self.unknowns],
+            "obligations": [o.to_dict() for o in self.obligations],
+            "evidence_bundle": self.evidence_bundle,
+            "human_sign_off": self.human_sign_off.to_dict(),
             "metadata": self.metadata,
         }
 
@@ -632,6 +807,10 @@ class AuditPack:
             control_evaluations=[ControlEvaluation.from_dict(c) for c in data.get("control_evaluations", [])],
             risk_heatmap=dict(data.get("risk_heatmap", {})),
             governance_score=float(data.get("governance_score", 100.0)),
+            unknowns=[UnknownItem.from_dict(u) for u in data.get("unknowns", [])],
+            obligations=[AuditObligation.from_dict(o) for o in data.get("obligations", [])],
+            evidence_bundle=dict(data.get("evidence_bundle", {})),
+            human_sign_off=HumanSignOff.from_dict(data.get("human_sign_off", {})),
             metadata=dict(data.get("metadata", {})),
         )
         return pack

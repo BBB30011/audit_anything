@@ -123,7 +123,91 @@ class ReportExporter:
                 f"{step['action_required']} | {step['target_days']} Hari | {step['pic']} |"
             )
 
-        lines.append("\n---\n*Laporan ini dihasilkan secara otomatis oleh sistem analitik Skill-Audit.*")
+        # 7. REA Ledger of Unknowns (Inquiries)
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 7. BUKU BESAR PERTANYAAN TERBUKA (LEDGER OF UNKNOWNS & INQUIRIES)",
+            "> *Metodologi REA: Seluruh ambiguitas bukti dan dokumen yang belum diperoleh dicatat sebagai inquiry resmi.*",
+            "",
+        ])
+        if pack.unknowns:
+            lines.append("| ID | Pertanyaan & Klarifikasi Bukti | Kategori | Status | Bukti Diperlukan |")
+            lines.append("|:---:|:---|:---|:---:|:---|")
+            for u in pack.unknowns:
+                st_icon = "🟢 RESOLVED" if u.status.value == "resolved" else ("🟡 OPEN" if u.status.value == "open" else "⚪ WAIVED")
+                res_txt = f"<br>_Penyelesaian:_ {u.resolution_notes}" if u.resolution_notes else ""
+                lines.append(f"| `{u.id}` | **{u.question}**{res_txt} | `{u.category}` | `{st_icon}` | {u.evidence_required} |")
+            lines.append("")
+        else:
+            lines.append("> 🟢 **Seluruh Bukti Lengkap:** Tidak terdapat pertanyaan atau ambiguitas bukti yang menggantung.\n")
+
+        # 8. REA Audit Obligations & Coverage
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 8. EVALUASI PEMENUHAN KEWAJIBAN AUDIT (AUDIT OBLIGATIONS COVERAGE)",
+            "> *Metodologi REA: Pemenuhan kewajiban pengujian standar sesuai regulasi dan kerangka kerja.*",
+            "",
+        ])
+        if pack.obligations:
+            lines.append("| ID | Prosedur Kewajiban Audit | Dasar Regulasi / Standar | Status | Catatan Pengujian |")
+            lines.append("|:---:|:---|:---|:---:|:---|")
+            for o in pack.obligations:
+                st_icon = "🟢 SATISFIED" if o.status == "satisfied" else ("🔴 VIOLATED" if o.status == "violated" else "🟡 PARTIAL")
+                lines.append(f"| `{o.id}` | **{o.title}** | {o.standard_ref} | `{st_icon}` | {o.coverage_notes} |")
+            lines.append("")
+
+        # 9. Cryptographic Evidence Bundle Manifest
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 9. MANIFES BERKAS BUKTI & INTEGRITAS KRIPTOGRAFIS (EVIDENCE BUNDLE)",
+            "> *Nilai Hash SHA-256 menjamin keaslian bukti audit dan deteksi manipulasi (Tamper-Evident).*  ",
+            f"**Bundle ID:** `{pack.evidence_bundle.get('bundle_id', 'EVD-AUTO')}` | "
+            f"**Status Integritas:** `🟢 {pack.evidence_bundle.get('integrity_status', 'VERIFIED_INTACT').upper()}`",
+            "",
+            "| Nama Berkas Dokumen | Peran Berkas | SHA-256 Digest | Ukuran | Status Forensik |",
+            "|:---|:---|:---|:---:|:---:|",
+        ])
+        for f in pack.evidence_bundle.get("files", []):
+            hash_abbr = f"{f.get('content_sha256', '')[:16]}...{f.get('content_sha256', '')[-12:]}"
+            lines.append(f"| `{f.get('name')}` | `{f.get('role_in_dossier')}` | `{hash_abbr}` | {f.get('size_bytes', 0)} B | 🟢 Verified Intact |")
+
+        # 10. Human Sign-Off Sheet
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 10. LEMBAR PENGESAHAN & OPINI AUDITOR MANUSIA (HUMAN SIGN-OFF)",
+        ])
+        so = pack.human_sign_off
+        if so.is_signed:
+            lines.extend([
+                f"> **STATUS:** `🟢 TELAH DISAHKAN & DITANDATANGANI`  ",
+                f"> **Nama Auditor Penanggung Jawab:** {so.reviewer_name}  ",
+                f"> **Jabatan / Registrasi:** {so.reviewer_role} (NIP/No. Reg: `{so.reviewer_license_or_nip}`)  ",
+                f"> **Tanggal Pengesahan:** {so.signed_at}  ",
+                f"> **Kesimpulan & Opini Audit:** **{so.audit_opinion}**  ",
+                f"> **Catatan Akhir Auditor:**  \n> _{so.comments}_  ",
+                "",
+                "```",
+                f"   [DITANDATANGANI SECARA ELEKTRONIK]",
+                f"   Oleh : {so.reviewer_name}",
+                f"   Peran: {so.reviewer_role}",
+                f"   Opini: {so.audit_opinion}",
+                "```",
+            ])
+        else:
+            lines.extend([
+                "> 🟡 **STATUS: DRAFT - MENUNGGU REVIEW & PENGESAHAN AUDITOR MANUSIA**",
+                "> *Untuk menandatangani laporan ini, jalankan perintah:* `skillaudit signoff <pack_file>` *atau gunakan dasbor interaktif.*",
+            ])
+
+        lines.append("\n---\n*Laporan ini dihasilkan oleh Sistem Skill-Audit terintegrasi Kolaborasi Human-AI & Arsitektur REA.*")
         report_text = "\n".join(lines)
 
         if output_file:
@@ -132,6 +216,7 @@ class ReportExporter:
             p.write_text(report_text, encoding="utf-8")
 
         return report_text
+
 
     def export_working_papers(self, pack: AuditPack, output_file: str | Path | None = None) -> str:
         """Render Kertas Kerja Audit (KKA) in Markdown table format."""

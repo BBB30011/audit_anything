@@ -7,8 +7,10 @@ from skill_audit.analyzers.compliance import ComplianceAnalyzer
 from skill_audit.analyzers.cross_checker import CrossChecker
 from skill_audit.analyzers.governance_checker import GovernanceChecker
 from skill_audit.analyzers.math_checker import MathChecker
+from skill_audit.analyzers.obligation_engine import ObligationEngine
 from skill_audit.analyzers.risk_engine import RiskEngine
 from skill_audit.analyzers.sod_checker import SoDChecker
+from skill_audit.analyzers.unknowns_engine import UnknownsEngine
 
 __all__ = [
     "MathChecker",
@@ -18,4 +20,7 @@ __all__ = [
     "SoDChecker",
     "GovernanceChecker",
     "RiskEngine",
+    "UnknownsEngine",
+    "ObligationEngine",
 ]
+

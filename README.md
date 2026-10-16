@@ -1,228 +1,249 @@
-<p align="center">
-  <h1 align="center">🔍 Skill-Audit</h1>
-  <p align="center"><b>Comprehensive Document & Audit Dossier Analyzer, 3-Way Matching Engine, and AI Agent Skill</b></p>
-</p>
+# 🏛️ Skill-Audit (Auditor-Anything)
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge" alt="License"/></a>
-  <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.10+-3b82f6?style=for-the-badge" alt="Python"/></a>
-  <img src="https://img.shields.io/badge/standard-5C_Audit_Findings-f59e0b?style=for-the-badge" alt="5C Audit Findings"/>
-  <img src="https://img.shields.io/badge/matching-3--Way_Reconciliation-a855f7?style=for-the-badge" alt="3-Way Matching"/>
-  <img src="https://img.shields.io/badge/agent_plugin-Antigravity_%7C_Claude_%7C_Cursor-6366f1?style=for-the-badge" alt="Agent Plugin"/>
-</p>
+> **Enterprise Document & Audit Dossier Auditing System with Zero-Hallucination Evidence Grounding, 5-Pillar Knowledge Base, REA Architecture Integration, and Human-AI Collaborative Triage.**
 
-<p align="center">
-  <a href="#ringkasan--filosofi">Filosofi</a> •
-  <a href="#fitur-utama">Fitur Utama</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#arsitektur-output">Arsitektur Output</a> •
-  <a href="#uji-silang--3-way-matching">3-Way Matching</a> •
-  <a href="#standar-temuan-5c">Metodologi 5C</a> •
-  <a href="#cli-reference">CLI Reference</a> •
-  <a href="#instalasi-plugin--skill">Instalasi Plugin Skill</a> •
-  <a href="#python-api">Python API</a>
-</p>
+[![CI Test Suite](https://img.shields.io/badge/pytest-43%20passed-brightgreen.svg)]()
+[![Standards](https://img.shields.io/badge/standards-COSO%202013%20%7C%20ISO%2031000%20%7C%20ISO%2037001%20%7C%20ITGC-blue.svg)]()
+[![Offline](https://img.shields.io/badge/offline-100%25%20standalone-success.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Antigravity%20%7C%20Claude%20Code%20%7C%20Cursor%20%7C%20CLI-purple.svg)]()
 
 ---
 
-## 📌 Ringkasan & Filosofi
+## 🌟 Ringkasan Eksekutif (Executive Summary)
 
-Diinspirasi oleh arsitektur modular **[SYuan03/Skill-Anything](https://github.com/SYuan03/Skill-Anything)** yang mentransformasi materi mentah menjadi paket pembelajaran terstruktur dengan kutipan bukti terverifikasi (*verifiable source quotes*), **Skill-Audit** dirancang khusus untuk domain audit forensik, keuangan, kepatuhan, dan pengadaan dokumen:
+**Skill-Audit (Auditor-Anything)** adalah sistem audit dokumen dan berkas penugasan (*audit dossier*) berbasis CLI dan Plugin Agen AI yang dirancang untuk kebutuhan auditor internal, akuntan forensik, komite audit, dan inspektorat. 
 
-> **Skill-Audit mengubah berkas dokumen mentah (PDF, Excel, Word, teks, atau map berkas/dossier ZIP) menjadi AuditPack terstruktur, Laporan Hasil Audit (LHA) formal berstandar 5C, Kertas Kerja Audit (KKA), dasbor web interaktif offline, dan AI Agent Skill yang siap dipasang pada asisten AI seperti Google Antigravity, Claude Code, dan Cursor.**
+Dibangun dengan memadukan dua pilar teknologi mutakhir:
+1. **[Skill-Anything](https://github.com/SYuan03/Skill-Anything)**: Ekstraksi dan pengemasan keahlian dokumen menjadi *agent skill* modular yang portabel untuk Google Antigravity, Claude Code, dan Cursor.
+2. **[REA (Reverse Engineering Assistant)](https://github.com/morluto/rea)**: Metodologi forensik tingkat tinggi yang menerapkan **Ledger of Unknowns & Inquiries**, **Cryptographic Evidence Bundles (SHA-256)**, batasan keamanan konten (*untrusted content provenance*), dan **Reconstruction Obligation Ledger**.
 
----
-
-## ✨ Fitur Utama
-
-- 📑 **Multi-Source Ingestion**: Mendukung dokumen PDF (`.pdf`), spreadsheet Excel & CSV (`.xlsx`, `.csv`), Microsoft Word (`.docx`), teks/markdown (`.txt`, `.md`), serta folder berkas atau arsip ZIP berisi map dossier lengkap.
-- ⚖️ **Uji Silang & 3-Way Matching Otomatis**: Melakukan rekonsiliasi nilai, kuantitas, dan tanggal antar-dokumen: **Kontrak/SPK ⟷ BAST (Berita Acara Serah Terima) ⟷ Invoice ⟷ Bukti Transfer Bank**.
-- 🧮 **Uji Aritmatika & Pajak Substantif**: Menghitung ulang kebenaran perkalian kuantitas × harga satuan, akurasi pemungutan PPN 11% (UU HPP No. 7/2021), PPh pasal 21/22/23, dan mendeteksi selisih hitung tagihan.
-- ⏱️ **Deteksi Anomali & Fraud Red Flags**:
-  - *Premature / Backdated Billing*: Invoice bertanggal lebih awal dari BAST fisik.
-  - *Perikatan Post-Factum*: SPK/Kontrak bertanggal setelah barang/jasa diserahkan.
-  - *Pemecahan Paket (Split Purchasing)*: Memecah transaksi mendekati ambang batas tender (Rp 50.000.000) untuk menghindari lelang.
-  - *Ketiadaan Bea Meterai*: Transaksi bernilai $\ge$ Rp 5.000.000 tanpa bukti meterai sah (UU Bea Meterai No. 10/2020).
-  - *Ketiadaan Otorisasi*: Berkas tanpa pengesahan tanda tangan berwenang.
-- 🎯 **Verifiable Evidence Grounding (Zero Hallucination)**: Setiap temuan audit wajib memiliki kutipan teks verbatim dan nomor lokasi dokumen (halaman, nomor baris, pasal). Temuan tanpa bukti nyata langsung ditolak.
-- 🌐 **Dasbor Web Interaktif Mandiri (Single-File Offline HTML)**: Satu file `index.html` tanpa ketergantungan internet/CDN. Memuat pencarian temuan real-time, filter tingkat risiko, kartu temuan 5C, tabel rekonsiliasi, dan tata letak siap cetak (*print-to-PDF ready*).
-- 🤖 **Instalasi Plugin / AI Skill Siap Pakai**: Dilengkapi format standar `SKILL.md` dengan panduan prompt, referensi audit, dan skrip CLI yang langsung dapat diintegrasikan ke sistem agen AI.
-- 🛡️ **Pintu Gerbang CI/CD (`--strict`)**: Perintah `skillaudit verify pack.yaml --strict` untuk memastikan integritas data audit sebelum dipublikasikan.
+Sistem dapat dijalankan **100% offline** menggunakan mesin analisis aturan deterministik (*heuristic rule engines*) tanpa memerlukan API key eksternal, atau dengan LLM lokal/cloud opsional untuk sintesis narasi tingkat lanjut.
 
 ---
 
-## 🚀 Quick Start
+## 🏛️ 5 Pilar Utama Fondasi Audit (Enterprise Pillars)
 
-### 1. Instalasi Repositori Git
-
-Clone repositori ini dan instal dependensinya:
-
-```bash
-git clone https://github.com/username/skill-audit.git
-cd skill-audit
-
-# Instal mode pengembangan lokal
-pip install -e . --break-system-packages
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                          5 PILAR UTAMA AUDITOR-ANYTHING                                │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 1. PROSES BISNIS        │ P2P, O2C, R2R, H2R, Capex & Aset, Inventory & Supply Chain   │
+│ 2. TEKNIS & ITGC        │ IT General Controls (Akses, Perubahan, Operasi), SHA-256     │
+│ 3. TATA KELOLA (GCG)    │ TARIF, Delegation of Authority (DoA), Anti-Bribery ISO 37001 │
+│ 4. PENGENDALIAN (COSO)  │ COSO 2013 17 Prinsip, Segregation of Duties (SoD Conflicts)  │
+│ 5. MANAJEMEN RISIKO     │ ISO 31000 ERM, 5x5 Likelihood x Impact Heatmap Matrix        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Periksa ketersediaan CLI:
-```bash
-skillaudit --help
-```
+1. **Proses Bisnis (*Business Processes*)**: Mengaudit siklus end-to-end:
+   - **Procure-to-Pay (P2P)**: Permintaan (PR), tender, SPK/Kontrak, penerimaan fisik (BAST), verifikasi 3-Way Match, perpajakan, dan voucher pembayaran.
+   - **Order-to-Cash (O2C)**: Batas kredit, delivery order, penagihan invoice & faktur pajak, rekonsiliasi piutang (*aging*).
+   - **Record-to-Report (R2R)**: Jurnal penyesuaian manual, rekonsiliasi buku besar pembantu ke GL, rekonsiliasi bank harian/bulanan.
+   - **Hire-to-Retire (H2R)**: Pencegahan pegawai fiktif (*ghost employee*), rekonsiliasi payroll ke HRIS, PPh 21 metode TER (PP 58/2023), BPJS.
+2. **Teknis & Audit Digital (*Technical Audit & ITGC*)**:
+   - 4 Domain ITGC: Akses Program & Data, Manajemen Perubahan Sistem (CAB), Operasi Komputer & Cadangan Terenkripsi (*off-site restore drill*), Secure SDLC.
+   - Integritas Kriptografis: Hash SHA-256 untuk mendeteksi *tampering* berkas dan verifikasi kronologi stempel waktu (*audit trail timeline verification*).
+3. **Tata Kelola Korporasi (*Corporate Governance & GRC*)**:
+   - Prinsip TARIF (*Transparansi, Akuntabilitas, Responsibilitas, Independensi, Kewajaran*).
+   - Penegakan Matriks Batas Wewenang (*Delegation of Authority - DoA*) bertingkat dari Supervisor hingga RUPS.
+   - Standar Anti-Penyuapan SNI ISO 37001 dan pencegahan benturan kepentingan (*Conflict of Interest*).
+4. **Pengendalian Internal (*Internal Controls — COSO 2013 & SoD*)**:
+   - 17 Prinsip COSO dan pengujian efektivitas pengendalian (*Test of Design* & *Test of Operating Effectiveness*).
+   - Pendeteksi Benturan Pemisahan Tugas (*Segregation of Duties - SoD*): Pembuat Pesanan vs Penerima Barang (BAST), Pembuat Komitmen vs Penyetuju, Pengelola Master Vendor vs Pemroses Faktur.
+5. **Manajemen Risiko Keseluruhan (*ISO 31000 ERM & 5x5 Heatmap*)**:
+   - Matriks 5x5 (Likelihood 1-5 x Impact 1-5).
+   - Perhitungan *Inherent Risk* dan *Residual Risk* berbasis faktor efektivitas pengendalian terpasang.
+   - Visualisasi kuadran: 🔴 Kritis, 🟠 Tinggi, 🟡 Sedang, 🟢 Rendah.
 
 ---
 
-### 2. Mengaudit Dokumen atau Berkas Dossier
+## 🤝 Alur Kolaborasi Human-AI (Human-AI Collaboration Flow)
 
-#### A. Mengaudit Dokumen Tunggal (PDF, Word, Excel, Teks)
-```bash
-skillaudit doc path/to/kontrak.docx --format all
+Skill-Audit tidak menggantikan pertimbangan profesional (*professional judgement*) auditor manusia, melainkan menjadi **Co-Pilot Analitis** berkemampuan tinggi.
+
+```
+       [ AI AUDIT CO-PILOT ]                        [ HUMAN LEAD AUDITOR ]
+                 │                                             │
+   1. Ingest Dossier & Extractor                               │
+      (PDF, Excel, Word, Text)                                 │
+                 │                                             │
+   2. REA Analysis & 5-Pillar Engine                           │
+      • 3-Way Match & Tax Check                                │
+      • SoD & DoA Breach Detection                             │
+      • SHA-256 Evidence Manifest                              │
+      • Compile 5C Findings & Drafts                           │
+      • Open Inquiries (Unknowns Ledger)                       │
+                 │                                             │
+                 ├────────────────────────────────────────────►│ 3. Human Triage & Review
+                 │                                             │    • skillaudit triage / Web UI
+                 │                                             │    • Review & Approve 5C Drafts
+                 │                                             │    • Resolve/Waive Unknowns
+                 │◄────────────────────────────────────────────┤    • Adjust Risk & Add Notes
+   4. Re-Synthesis & Grounding Gate                            │
+      • Strict Zero-Hallucination Verifier                     │
+      • Obligations Coverage Evaluation                        │
+                 │                                             │
+                 ├────────────────────────────────────────────►│ 5. Formal Human Sign-Off
+                 │                                             │    • skillaudit signoff
+                 │                                             │    • Certified Audit Opinion:
+                 │                                             │      WTP / WDP / Adverse
+                 ▼                                             ▼
+   ┌───────────────────────────────────────────────────────────────────────────┐
+   │ DELIVERABLES: LHA (MD/PDF) · KKA · Web Dashboard · Evidence Bundle · CSV  │
+   └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### B. Mengaudit Berkas Audit Keseluruhan (Dossier Folder / ZIP)
-```bash
-skillaudit dossier examples/procurement_dossier/ --format all -o output/hasil_audit
-```
-
-#### C. Melakukan Uji Silang Terarah (3-Way Matching)
-```bash
-skillaudit cross-check \
-  examples/procurement_dossier/01_SPK_Kontrak_Pengadaan.txt \
-  examples/procurement_dossier/02_BAST_Serah_Terima.txt \
-  examples/procurement_dossier/03_Invoice_Tagihan_Vendor.txt \
-  -o output/uji_silang
-```
-
-#### D. Memvalidasi Kualitas AuditPack (CI/CD Quality Gate)
-```bash
-skillaudit verify output/hasil_audit/aud_procurement_dossier_01_pack.yaml --strict
-```
-
-#### E. Membuat Paket Berbagi Siap Kirim (Offline HTML + ZIP)
-```bash
-skillaudit share output/hasil_audit/aud_procurement_dossier_01_pack.yaml -o output/paket_klien
-```
+Lihat panduan lengkap di [`COLLABORATION.md`](COLLABORATION.md).
 
 ---
 
-## 📦 Arsitektur Output
+## 🔬 Metodologi REA (Reverse Engineering Assistant Integration)
 
-Setiap proses audit menghasilkan paket deliverables lengkap:
+Terinspirasi dari arsitektur [morluto/rea](https://github.com/morluto/rea):
+1. **Ledger of Unknowns & Inquiries**: Ketiadaan dokumen (misal: invoice tanpa bukti transfer bank) tidak ditebak, melainkan dicatat sebagai *UnknownItem* resmi untuk diklarifikasi manajemen.
+2. **Cryptographic Evidence Bundle**: Paket arsip ZIP mandiri berisi salinan dokumen, metadata ekstraksi, dan `manifest.json` bertanda tangan SHA-256 yang berkekuatan hukum di hadapan pengadilan atau regulator.
+3. **Isolasi Keamanan Data**: Teks dokumen audit diberi penanda `_meta.provenance.untrusted_content` untuk melindungi model AI dari serangan injeksi instruksi tersembunyi (*prompt injection*).
+4. **Audit Reconstruction & Obligation Ledger**: Pengujian ketercakupan seluruh kewajiban standar regulasi sebelum laporan dinyatakan selesai.
 
-```text
-output/
-├── aud_procur_01_pack.yaml               # Basis data AuditPack terstruktur
-├── aud_procur_01_Laporan_Hasil_Audit.md   # Laporan Hasil Audit (LHA) formal standar 5C
-├── aud_procur_01_Kertas_Kerja_Audit.md   # Kertas Kerja Audit (KKA) uji kepatuhan
-├── aud_procur_01_dashboard.html          # Dasbor web interaktif offline (buka di browser)
-├── aud_procur_01_findings.csv            # Matriks temuan siap buka di Excel/Sheets
-└── audit-berkas-procurement-dossier/     # Agent Skill siap pakai
-    ├── SKILL.md                          # Definisi AI Agent Skill
-    ├── references/                       # Panduan metodologi 5C & 3-way matching
-    ├── assets/                           # Data pack & checklist YAML
-    └── scripts/                          # Skrip CLI mandiri runner
-```
+Lihat panduan lengkap di [`REA_METHODOLOGY.md`](REA_METHODOLOGY.md).
 
 ---
 
-## ⚖️ Uji Silang & 3-Way Matching
+## 🚀 Instalasi & Persiapan Cepat (Quickstart)
 
-Sistem secara cerdas memetakan dokumen dalam dossier ke dalam fungsi perikatan:
+### 1. Prasyarat
+- Python 3.10+ (Diuji pada Python 3.13)
+- Git
 
-```mermaid
-flowchart LR
-    A["📜 Kontrak / SPK<br>(Otorisasi & Pagu Nilai)"] -->|Uji Kuantitas & Spek| B["📦 BAST Serah Terima<br>(Verifikasi Fisik & Tanggal)"]
-    B -->|Uji Tagihan Riil| C["🧾 Invoice & Faktur Pajak<br>(Kalkulasi Pajak PPN 11%)"]
-    C -->|Uji Pencairan Kas| D["💳 Bukti Transfer / Bank<br>(Net Payment Proof)"]
-
-    A -. "Uji Kronologi: Tgl SPK <= Tgl BAST <= Tgl Invoice <= Tgl Bayar" .- C
-```
-
----
-
-## 🏛️ Standar Temuan 5C (The 5C Methodology)
-
-Setiap temuan disusun berdasarkan kaidah standar audit internasional (IIA & BPK):
-
-1. **Condition (Kondisi)**: Fakta riil temuan empiris di dokumen yang dilengkapi kutipan verbatim sumber.
-2. **Criteria (Kriteria)**: Standar regulasi (UU/PP/Perpres), SAK, atau klausul perjanjian yang semestinya ditaati.
-3. **Cause (Sebab)**: Akar penyebab mengapa deviasi terjadi.
-4. **Consequence (Akibat)**: Kuantifikasi risiko finansial, sanksi administrasi, atau kerugian hukum.
-5. **Recommendation (Rekomendasi)**: Solusi perbaikan konkrit, terukur, dan berorientasi pencegahan.
-
----
-
-## 🔌 Instalasi Plugin / Skill ke Asisten AI
-
-Untuk memasang keahlian audit dokumen ke asisten AI Anda secara otomatis:
-
-### Ke Google Antigravity
+### 2. Instalasi
 ```bash
+# Clone repository
+git clone https://github.com/BBB30011/audit_anything.git
+cd audit_anything
+
+# Install dalam mode editable
+pip install --no-build-isolation --no-deps -e . --break-system-packages
+```
+
+### 3. Pasang Skill ke Agen AI (Antigravity, Claude Code, Cursor)
+```bash
+# Otomatis memasang ke plugin Google Antigravity
 skillaudit install-skill --target antigravity
-```
-*Skill langsung disalin ke repositori global `antigravity-skills-manager` dan aktif digunakan agen Antigravity.*
 
-### Ke Claude Code
-```bash
-skillaudit install-skill --target claude
-```
-
-### Ke Cursor / Windsurf
-```bash
+# Atau salin folder skill untuk Claude Code / Cursor
 skillaudit install-skill --target cursor
 ```
 
 ---
 
-## 💻 CLI Reference
+## 💻 Panduan Perintah CLI (CLI Usage)
 
-| Perintah | Deskripsi | Opsi Utama |
-|:---|:---|:---|
-| `skillaudit doc <file>` | Audit dokumen tunggal (PDF, Excel, Docx, Text) | `-o <dir>`, `-f [pack\|report\|web\|all]` |
-| `skillaudit dossier <path>` | Audit map berkas dossier / ZIP multi-dokumen | `-o <dir>`, `-c <checklist.yaml>` |
-| `skillaudit cross-check <f1> <f2>...` | Uji silang & rekonsiliasi terarah | `-o <dir>`, `-t <title>` |
-| `skillaudit verify <pack.yaml>` | Validasi integritas dan bukti sumber | `--strict`, `--json` |
-| `skillaudit export <pack.yaml>` | Ekspor pack ke format laporan tertentu | `-f [report\|web\|csv\|skill\|all]` |
-| `skillaudit share <pack.yaml>` | Buat dasbor web offline + bundel ZIP | `-o <dir>` |
-| `skillaudit install-skill` | Pasang skill ke Antigravity / Claude / Cursor | `-t [antigravity\|claude\|cursor]` |
-| `skillaudit info <pack.yaml>` | Tampilkan ringkasan metrik terminal | — |
+### 1. Audit Berkas Keseluruhan (Dossier)
+```bash
+skillaudit dossier examples/procurement_dossier -f all -o output/audit_2024
+```
+Menghasilkan secara otomatis:
+- `*_pack.yaml` (AuditPack data terstruktur)
+- `*_Laporan_Hasil_Audit.md` (LHA Formal Berstandar BPK/IIA)
+- `*_Kertas_Kerja_Audit.md` (KKA Prosedur Uji Substantif)
+- `*_dashboard.html` (Dasbor Interaktif Offline Zero-CDN)
+- `*_evidence_bundle.zip` (Cryptographic Evidence Bundle)
+- `*_findings.csv` (Daftar Temuan untuk Spreadsheet)
 
----
+### 2. Visualisasi Matriks Risiko 5x5 ISO 31000
+```bash
+skillaudit risk output/audit_2024/*_pack.yaml
+```
 
-## 🐍 Python API
+### 3. Uji Pemisahan Tugas (SoD) & Batas Kewenangan (DoA)
+```bash
+skillaudit sod output/audit_2024/*_pack.yaml
+skillaudit governance output/audit_2024/*_pack.yaml
+```
 
-Anda juga dapat mengintegrasikan Skill-Audit langsung ke dalam kode Python atau pipeline analitik:
+### 4. Kelola Ledger of Unknowns (Inquiries)
+```bash
+# Tampilkan daftar pertanyaan terbuka
+skillaudit unknowns output/audit_2024/*_pack.yaml
 
-```python
-from skill_audit.engine import AuditEngine
-from skill_audit.exporters import ReportExporter, WebExporter
+# Selesaikan inquiry dengan bukti pendukung
+skillaudit resolve-unknown output/audit_2024/*_pack.yaml \
+  --id UNK-01 \
+  --notes "Telah diverifikasi terhadap rekening koran Bank Mandiri 25 Sept 2024" \
+  --evidence "Rekening_Koran_Sept2024.pdf" \
+  --auditor "Drs. Hendro, Ak., CA"
+```
 
-# Inisialisasi engine audit
-engine = AuditEngine()
+### 5. Evaluasi Ketercakupan Kewajiban Audit (Obligations)
+```bash
+skillaudit obligations output/audit_2024/*_pack.yaml
+```
 
-# Jalankan audit berkas dossier
-pack = engine.audit("examples/procurement_dossier")
+### 6. Ekspor & Verifikasi Integritas Berkas Bukti (Evidence Bundle)
+```bash
+# Ekspor bukti ke arsip forensik ZIP
+skillaudit bundle output/audit_2024/*_pack.yaml -o evidence.zip
 
-# Cetak ringkasan metrik
-print(f"Skor Kepatuhan: {pack.metrics.compliance_score}%")
-print(f"Total Temuan: {len(pack.findings)}")
+# Verifikasi terhadap manipulasi/tampering
+skillaudit verify-bundle output/audit_2024/*_pack.yaml
+```
 
-# Ekspor laporan
-web_exporter = WebExporter()
-web_exporter.export(pack, "output/dashboard.html")
+### 7. Sesi Triage Interaktif Kolaborasi Human-AI
+```bash
+skillaudit triage output/audit_2024/*_pack.yaml
+```
+
+### 8. Pengesahan & Tanda Tangan Auditor Manusia
+```bash
+skillaudit signoff output/audit_2024/*_pack.yaml \
+  --name "Drs. Bambang Wijaya, Ak., CA, CPA" \
+  --role "Lead Internal Auditor" \
+  --nip "NIP-19850412-201001-1-003" \
+  --opinion "WDP (Wajar Dengan Pengecualian)" \
+  --notes "Opini WDP diterbitkan karena ketiadaan pakta integritas rekanan pada kontrak."
+```
+
+### 9. Gerbang Validasi Ketat CI/CD (Zero-Hallucination Gate)
+```bash
+skillaudit verify output/audit_2024/*_pack.yaml --strict
 ```
 
 ---
 
-## 🧪 Menjalankan Pengujian (Unit Tests)
+## 📊 Dasbor Web Interaktif (Offline Interactive HTML)
 
+Setiap penugasan menghasilkan berkas mandiri `dashboard.html` (bebas dependensi internet / zero-CDN) dengan fitur:
+- **Matriks Risiko 5x5 Interaktif**: Klik kuadran untuk memfilter temuan.
+- **Triage Panel Kolaborasi**: Tombol *Approve*, *Reject (False Positive)*, input catatan auditor manusia, dan unduh data hasil review (`.json`).
+- **Tab Unknowns Ledger**: Pantau status klarifikasi bukti dan dokumen yang belum diperoleh.
+- **Tab Audit Obligations**: Ukur pemenuhan regulasi standar.
+- **Tab Rekonsiliasi 3-Way**: Tabel rincian pembanding Kontrak vs BAST vs Invoice.
+- **Tab SoD & DoA**: Matriks benturan peran dan riwayat pelampauan wewenang approval.
+- **Tab Evidence Forensics**: Tabel SHA-256 digest dan status integritas berkas.
+- **Lembar Pengesahan Formal**: Sertifikat opini audit yang siap dicetak (*print-ready*).
+
+---
+
+## 🧪 Pengujian Unit & Kualitas Kode (Test Suite)
+
+Repositori ini dilengkapi uji otomatis menyeluruh (`pytest`):
+- **43 Unit Tests (100% Pass dalam 0.55s)**
+- Menguji seluruh pilar:
+  - Ekstraksi entitas & verifikasi kutipan bukti verbatim
+  - Uji rekonsiliasi 3-Way Matching & perhitungan PPN 11%
+  - Deteksi benturan pemisahan tugas (SoD) & batas otorisasi (DoA)
+  - Pembentukan matriks risiko 5x5 ISO 31000
+  - Pembuatan & verifikasi integritas paket bukti (Evidence Bundle)
+  - Pengelolaan buku besar pertanyaan terbuka (Unknowns Ledger)
+  - Sub-perintah CLI end-to-end
+
+Jalankan test suite kapan saja:
 ```bash
 pytest -v
 ```
-Seluruh 27 tes unit terintegrasi mencakup pengujian model, parser, grounding kutipan, kalkulasi aritmatika, uji kronologi tanggal, deteksi pemecahan paket, validasi CI/CD, dan eksportir laporan.
 
 ---
 
 ## 📄 Lisensi
 
-Proyek ini dilisensikan di bawah [MIT License](LICENSE).
+Didistribusikan di bawah lisensi Apache 2.0. Bebas digunakan untuk keperluan komersial, audit internal korporasi, kantor akuntan publik (KAP), maupun instansi pemerintah (APIP/BPK).

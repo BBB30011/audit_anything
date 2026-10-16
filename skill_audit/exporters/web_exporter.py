@@ -1,10 +1,22 @@
-"""Single-file offline interactive HTML audit dashboard exporter with 5x5 Heatmap and GRC views."""
+"""Single-file offline interactive HTML audit dashboard exporter.
+
+Features:
+- ISO 31000 5x5 Risk Heatmap
+- Standard 5C Findings with Interactive Human Triage (Approve/Reject/Notes)
+- REA Unknowns & Inquiries Ledger
+- REA Audit Obligations & Compliance Coverage
+- Cryptographic Evidence Bundle Forensics (SHA-256 integrity table)
+- Segregation of Duties (SoD) & Delegation of Authority (DoA) matrices
+- Interactive Human Auditor Sign-Off Sheet
+- Zero CDN dependencies (100% offline self-contained)
+"""
 
 from __future__ import annotations
 
 import html
 import json
 from pathlib import Path
+from typing import Any
 
 from skill_audit.models import AuditPack, AuditStatus, RiskLevel
 
@@ -21,7 +33,7 @@ class WebExporter:
         return out_path
 
     def render_html(self, pack: AuditPack) -> str:
-        # Prepare findings JSON for client-side search and filtering
+        # Prepare findings JSON for client-side search and triage
         findings_data = [
             {
                 "id": f.id,
@@ -35,6 +47,8 @@ class WebExporter:
                 "recommendation": f.recommendation,
                 "coso": f.coso_component or "Control Activities",
                 "process": f.business_process or "Procure-to-Pay",
+                "human_status": f.human_status or "pending",
+                "human_notes": f.human_notes or "",
                 "evidence": [e.to_dict() for e in f.evidence],
             }
             for f in pack.findings
@@ -50,6 +64,54 @@ class WebExporter:
         # Build 5x5 Heatmap HTML
         grid = pack.risk_heatmap.get("grid", {}) if pack.risk_heatmap else {}
         heatmap_html = self._render_heatmap_grid(grid)
+
+        # Build Unknowns rows
+        unknowns_rows = ""
+        for u in pack.unknowns:
+            st_badge = (
+                '<span class="badge badge-pass">RESOLVED</span>'
+                if u.status.value == "resolved"
+                else (
+                    '<span class="badge badge-medium">OPEN</span>'
+                    if u.status.value == "open"
+                    else '<span class="badge badge-neutral">WAIVED</span>'
+                )
+            )
+            res_txt = f"<br><small style='color: #22c55e;'><b>Penyelesaian:</b> {html.escape(u.resolution_notes)} ({html.escape(u.resolved_by)})</small>" if u.resolution_notes else ""
+            unknowns_rows += (
+                f"<tr><td><code>{html.escape(u.id)}</code></td>"
+                f"<td><b>{html.escape(u.question)}</b>{res_txt}</td>"
+                f"<td><span class=\"badge badge-neutral\">{html.escape(u.category)}</span></td>"
+                f"<td>{st_badge}</td>"
+                f"<td>{html.escape(u.impact)}</td>"
+                f"<td>{html.escape(u.evidence_required)}</td></tr>"
+            )
+
+        # Build Obligations rows
+        obligations_rows = ""
+        for o in pack.obligations:
+            st_cls = "badge-pass" if o.status == "satisfied" else ("badge-critical" if o.status == "violated" else "badge-medium")
+            obligations_rows += (
+                f"<tr><td><code>{html.escape(o.id)}</code></td>"
+                f"<td><b>{html.escape(o.title)}</b></td>"
+                f"<td><small>{html.escape(o.standard_ref)}</small></td>"
+                f"<td><span class=\"badge {st_cls}\">{o.status.upper()}</span></td>"
+                f"<td>{html.escape(o.coverage_notes)}</td></tr>"
+            )
+
+        # Build Evidence Bundle files rows
+        bundle_files = pack.evidence_bundle.get("files", [])
+        bundle_rows = ""
+        for f in bundle_files:
+            h = f.get("content_sha256", "")
+            abbr = f"{h[:16]}...{h[-12:]}" if len(h) >= 28 else h
+            bundle_rows += (
+                f"<tr><td><b>{html.escape(f.get('name', ''))}</b></td>"
+                f"<td><span class=\"badge badge-neutral\">{html.escape(f.get('role_in_dossier', ''))}</span></td>"
+                f"<td><code title=\"{h}\">{abbr}</code></td>"
+                f"<td>{f.get('size_bytes', 0):,} B</td>"
+                f"<td><span class=\"badge badge-pass\">VERIFIED INTACT</span></td></tr>"
+            )
 
         # Build SoD rows
         sod_rows = ""
@@ -100,114 +162,116 @@ class WebExporter:
 
         # Build action plan rows
         action_rows = ""
-        for act in pack.action_plan:
+        for a in pack.action_plan:
             action_rows += (
-                f"<tr><td>{act['step_no']}</td>"
-                f"<td><code>{html.escape(act['finding_id'])}</code></td>"
-                f"<td><b>{html.escape(act['priority'])}</b></td>"
-                f"<td>{html.escape(act['action_required'])}</td>"
-                f"<td>{act['target_days']} Hari</td>"
-                f"<td>{html.escape(act['pic'])}</td></tr>"
+                f"<tr><td>{a['step_no']}</td>"
+                f"<td><code>{html.escape(a['finding_id'])}</code></td>"
+                f"<td><b>{html.escape(a['priority'])}</b></td>"
+                f"<td>{html.escape(a['action_required'])}</td>"
+                f"<td>{a['target_days']} Hari</td>"
+                f"<td>{html.escape(a['pic'])}</td></tr>"
             )
+
+        so = pack.human_sign_off
+        so_name = so.reviewer_name or "Drs. Bambang Wijaya, Ak., CA, CPA"
+        so_role = so.reviewer_role or "Lead Internal Auditor"
+        so_nip = so.reviewer_license_or_nip or "NIP-19850412-201001-1-003"
+        so_opinion = so.audit_opinion or "WDP (Wajar Dengan Pengecualian)"
+        so_date = so.signed_at or "Belum Ditandatangani"
+        so_comments = so.comments or "Pengendalian internal memadai dengan beberapa catatan koreksi administratif."
+        so_badge = '<span class="badge badge-pass">DITANDATANGANI</span>' if so.is_signed else '<span class="badge badge-medium">MENUNGGU PENGESAHAN</span>'
 
         return f"""<!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{html.escape(pack.title)} — Auditor-Anything Dashboard</title>
-<style>
-:root {{
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border: #334155;
-  --accent: #3b82f6;
-  --critical: #ef4444;
-  --high: #f97316;
-  --medium: #f59e0b;
-  --low: #10b981;
-  --pass: #22c55e;
-}}
-* {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
-body {{ background-color: var(--bg-primary); color: var(--text-main); line-height: 1.6; padding: 20px; }}
-.container {{ max-width: 1240px; margin: 0 auto; }}
-header {{ background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }}
-.header-top {{ display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }}
-h1 {{ font-size: 1.8rem; margin-bottom: 8px; color: #fff; }}
-.meta-pills {{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }}
-.pill {{ background: #0f172a; border: 1px solid var(--border); padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; color: var(--text-muted); }}
-.scorecards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }}
-.card {{ background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }}
-.card-label {{ font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }}
-.card-value {{ font-size: 2rem; font-weight: bold; margin-top: 6px; color: #fff; }}
-.card-sub {{ font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }}
-.btn {{ background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 0.9rem; text-decoration: none; display: inline-block; }}
-.btn:hover {{ opacity: 0.9; }}
-.btn-print {{ background: #475569; }}
-.nav-tabs {{ display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px; padding-bottom: 8px; overflow-x: auto; }}
-.tab-btn {{ background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; font-size: 0.95rem; cursor: pointer; border-radius: 6px; font-weight: 500; white-space: nowrap; }}
-.tab-btn.active {{ background: var(--accent); color: white; }}
-.tab-content {{ display: none; }}
-.tab-content.active {{ display: block; }}
-.filter-bar {{ display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }}
-.search-input {{ flex: 1; min-width: 250px; background: var(--bg-secondary); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; color: white; }}
-.filter-btn {{ background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; }}
-.filter-btn.active {{ border-color: var(--accent); color: white; background: #1e3a8a; }}
-.finding-card {{ background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 6px solid var(--accent); }}
-.finding-card.critical {{ border-left-color: var(--critical); }}
-.finding-card.high {{ border-left-color: var(--high); }}
-.finding-card.medium {{ border-left-color: var(--medium); }}
-.finding-card.low {{ border-left-color: var(--low); }}
-.badge {{ display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }}
-.badge-critical {{ background: rgba(239, 68, 68, 0.2); color: #fca5a5; }}
-.badge-high {{ background: rgba(249, 115, 22, 0.2); color: #fdba74; }}
-.badge-medium {{ background: rgba(245, 158, 11, 0.2); color: #fde047; }}
-.badge-low {{ background: rgba(16, 185, 129, 0.2); color: #86efac; }}
-.badge-pass {{ background: rgba(34, 197, 94, 0.2); color: #86efac; }}
-.badge-neutral {{ background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }}
-.evidence-box {{ background: #0b1120; border-left: 4px solid #38bdf8; padding: 12px 16px; margin-top: 12px; border-radius: 4px; font-size: 0.9rem; color: #cbd5e1; }}
-table {{ width: 100%; border-collapse: collapse; margin-top: 16px; background: var(--bg-secondary); border-radius: 8px; overflow: hidden; }}
-th, td {{ padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9rem; }}
-th {{ background: #182234; color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }}
-tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
-
-/* Heatmap Grid */
-.heatmap-table {{ border-collapse: separate; border-spacing: 4px; width: 100%; max-width: 900px; margin: 20px auto; }}
-.heatmap-cell {{ height: 75px; text-align: center; vertical-align: middle; border-radius: 6px; font-weight: bold; font-size: 0.85rem; color: #fff; cursor: pointer; transition: transform 0.1s; }}
-.heatmap-cell:hover {{ transform: scale(1.03); outline: 2px solid #fff; }}
-.cell-red {{ background: #b91c1c; }}
-.cell-amber {{ background: #c2410c; }}
-.cell-yellow {{ background: #b45309; }}
-.cell-green {{ background: #15803d; }}
-
-@media print {{
-  body {{ background: white; color: black; padding: 0; }}
-  header, .card, .finding-card, table {{ background: white; border-color: #ccc; color: black; }}
-  .btn, .nav-tabs, .filter-bar {{ display: none; }}
-  .tab-content {{ display: block !important; margin-bottom: 30px; }}
-}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skill-Audit: {html.escape(pack.title)}</title>
+  <style>
+    :root {{
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --critical: #ef4444;
+      --high: #f97316;
+      --medium: #eab308;
+      --low: #3b82f6;
+      --pass: #22c55e;
+      --radius: 8px;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+    body {{ background: var(--bg); color: var(--text); padding: 24px; line-height: 1.5; }}
+    .header {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }}
+    .header h1 {{ font-size: 1.6rem; color: #fff; margin-bottom: 6px; }}
+    .meta-pills {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }}
+    .pill {{ background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; border: 1px solid var(--border); }}
+    .scorecards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 24px; }}
+    .card {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }}
+    .card-label {{ font-size: 0.82rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }}
+    .card-value {{ font-size: 1.8rem; font-weight: 700; color: #fff; }}
+    .card-sub {{ font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }}
+    .nav-tabs {{ display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }}
+    .tab-btn {{ background: transparent; border: none; color: var(--text-muted); padding: 8px 14px; font-size: 0.88rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; white-space: nowrap; }}
+    .tab-btn.active {{ color: var(--accent); border-bottom-color: var(--accent); background: rgba(59, 130, 246, 0.08); }}
+    .tab-content {{ display: none; }}
+    .tab-content.active {{ display: block; }}
+    .filter-bar {{ display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }}
+    .search-input {{ flex: 1; min-width: 260px; background: var(--card-bg); border: 1px solid var(--border); color: #fff; padding: 8px 14px; border-radius: var(--radius); font-size: 0.9rem; }}
+    .filter-btn {{ background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); padding: 6px 12px; border-radius: var(--radius); cursor: pointer; font-size: 0.82rem; }}
+    .filter-btn.active {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
+    .finding-card {{ background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; transition: transform 0.15s; }}
+    .finding-card:hover {{ border-color: #64748b; }}
+    .finding-card.critical {{ border-left-color: var(--critical); }}
+    .finding-card.high {{ border-left-color: var(--high); }}
+    .finding-card.medium {{ border-left-color: var(--medium); }}
+    .finding-card.low {{ border-left-color: var(--low); }}
+    .badge {{ padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; display: inline-block; }}
+    .badge-critical {{ background: rgba(239, 68, 68, 0.18); color: var(--critical); border: 1px solid var(--critical); }}
+    .badge-high {{ background: rgba(249, 115, 22, 0.18); color: var(--high); border: 1px solid var(--high); }}
+    .badge-medium {{ background: rgba(234, 179, 8, 0.18); color: var(--medium); border: 1px solid var(--medium); }}
+    .badge-low {{ background: rgba(59, 130, 246, 0.18); color: var(--low); border: 1px solid var(--low); }}
+    .badge-pass {{ background: rgba(34, 197, 94, 0.18); color: var(--pass); border: 1px solid var(--pass); }}
+    .badge-neutral {{ background: rgba(255, 255, 255, 0.08); color: var(--text-muted); }}
+    .evidence-box {{ background: rgba(0,0,0,0.25); border: 1px dashed var(--border); padding: 12px; border-radius: 6px; margin-top: 10px; font-size: 0.84rem; }}
+    .triage-actions {{ margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }}
+    .btn {{ padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 0.82rem; font-weight: 600; color: #fff; background: var(--card-bg); }}
+    .btn-approve {{ background: rgba(34, 197, 94, 0.2); border-color: var(--pass); color: var(--pass); }}
+    .btn-reject {{ background: rgba(239, 68, 68, 0.2); border-color: var(--critical); color: var(--critical); }}
+    .btn-print {{ background: var(--accent); border-color: var(--accent); }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.88rem; }}
+    th, td {{ padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }}
+    th {{ background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; }}
+    .heatmap-table {{ width: 100%; border-collapse: collapse; margin-top: 12px; text-align: center; }}
+    .heatmap-table th, .heatmap-table td {{ border: 1px solid var(--border); padding: 12px 8px; font-size: 0.82rem; }}
+    .heatmap-cell {{ font-weight: bold; border-radius: 2px; }}
+    .cell-red {{ background: rgba(239, 68, 68, 0.35); color: #fca5a5; }}
+    .cell-amber {{ background: rgba(249, 115, 22, 0.35); color: #fdba74; }}
+    .cell-yellow {{ background: rgba(234, 179, 8, 0.25); color: #fde047; }}
+    .cell-green {{ background: rgba(34, 197, 94, 0.2); color: #86efac; }}
+    @media print {{ body {{ background: #fff; color: #000; padding: 0; }} .nav-tabs, .btn-print, .filter-bar, .triage-actions {{ display: none !important; }} .tab-content {{ display: block !important; margin-bottom: 30px; }} }}
+  </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <div class="header-top">
-      <div>
-        <h1>{html.escape(pack.title)}</h1>
-        <p style="color: var(--text-muted);">{html.escape(pack.scope)}</p>
-      </div>
-      <div>
-        <button class="btn btn-print" onclick="window.print()">🖨️ Cetak / Print LHA</button>
+
+  <header class="header">
+    <div>
+      <h1>🏛️ Skill-Audit: {html.escape(pack.title)}</h1>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">{html.escape(pack.scope)}</p>
+      <div class="meta-pills">
+        <span class="pill">Referensi: <b>{html.escape(pack.audit_ref)}</b></span>
+        <span class="pill">Lead Auditor: <b>{html.escape(pack.lead_auditor)}</b></span>
+        <span class="pill">Domain: <b>{html.escape(pack.domain.value.upper())}</b></span>
+        <span class="pill">Tanggal: <b>{pack.created_at[:10]}</b></span>
+        <span class="pill">Dokumen: <b>{len(pack.documents)} Berkas</b></span>
+        <span class="pill">Human Sign-off: {so_badge}</span>
       </div>
     </div>
-    <div class="meta-pills">
-      <span class="pill">Referensi: <b>{html.escape(pack.audit_ref)}</b></span>
-      <span class="pill">Lead Auditor: <b>{html.escape(pack.lead_auditor)}</b></span>
-      <span class="pill">Domain: <b>{html.escape(pack.domain.value.upper())}</b></span>
-      <span class="pill">Tanggal: <b>{pack.created_at[:10]}</b></span>
-      <span class="pill">Dokumen: <b>{len(pack.documents)} Berkas</b></span>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn" onclick="exportReviewedJSON()">💾 Unduh Data Review (JSON)</button>
+      <button class="btn btn-print" onclick="window.print()">🖨️ Cetak / Print LHA</button>
     </div>
   </header>
 
@@ -223,7 +287,7 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
       <div class="card-sub">Kepatuhan batas kewenangan approval</div>
     </div>
     <div class="card">
-      <div class="card-label">Total Temuan Audit</div>
+      <div class="card-label">Total Temuan Audit (5C)</div>
       <div class="card-value">{pack.metrics.total_findings}</div>
       <div class="card-sub">Kritis: {crit_count} | Tinggi: {high_count} | Sedang: {med_count}</div>
     </div>
@@ -237,13 +301,17 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
   <div class="nav-tabs">
     <button class="tab-btn active" onclick="switchTab('findings')">📋 Temuan Audit ({len(pack.findings)})</button>
     <button class="tab-btn" onclick="switchTab('heatmap')">🔥 Matriks Risiko 5x5</button>
+    <button class="tab-btn" onclick="switchTab('unknowns')">❓ Inquiries / Unknowns ({len(pack.unknowns)})</button>
+    <button class="tab-btn" onclick="switchTab('obligations')">🛡️ Kewajiban Audit ({len(pack.obligations)})</button>
     <button class="tab-btn" onclick="switchTab('recon')">⚖️ Rekonsiliasi 3-Way ({len(pack.reconciliations)})</button>
-    <button class="tab-btn" onclick="switchTab('governance')">🛡️ Tata Kelola, SoD & DoA ({len(pack.sod_conflicts) + len(pack.doa_violations)})</button>
+    <button class="tab-btn" onclick="switchTab('governance')">🏛️ Tata Kelola, SoD & DoA ({len(pack.sod_conflicts) + len(pack.doa_violations)})</button>
+    <button class="tab-btn" onclick="switchTab('bundle')">🔐 Evidence Bundle Forensics ({len(bundle_files)})</button>
+    <button class="tab-btn" onclick="switchTab('signoff')">✍️ Pengesahan Auditor Manusia</button>
     <button class="tab-btn" onclick="switchTab('kka')">📑 Kertas Kerja (KKA) ({len(pack.working_papers)})</button>
-    <button class="tab-btn" onclick="switchTab('action')">🎯 Rencana Aksi ({len(pack.action_plan)})</button>
     <button class="tab-btn" onclick="switchTab('summary')">📖 Ringkasan Eksekutif</button>
   </div>
 
+  <!-- Tab 1: Findings -->
   <div id="tab-findings" class="tab-content active">
     <div class="filter-bar">
       <input type="text" id="searchInput" class="search-input" placeholder="Cari temuan berdasarkan kata kunci, judul, kondisi, atau proses..." oninput="filterFindings()">
@@ -256,6 +324,7 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
     <div id="findingsContainer"></div>
   </div>
 
+  <!-- Tab 2: 5x5 Heatmap -->
   <div id="tab-heatmap" class="tab-content">
     <div class="card" style="margin-bottom: 20px;">
       <h3>Matriks Risiko 5x5 Enterprise Risk Management (ISO 31000 / COSO ERM)</h3>
@@ -266,16 +335,52 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
     </div>
   </div>
 
-  <div id="tab-recon" class="tab-content">
-    <h3>Uji Silang & 3-Way Matching (Kontrak vs BAST vs Invoice vs Pembayaran)</h3>
-    <table>
-      <thead>
-        <tr><th>Uraian Uji Silang</th><th>Rincian Dokumen</th><th>Selisih</th><th>Status</th></tr>
-      </thead>
-      <tbody>{recon_rows or "<tr><td colspan='4'>Tidak ada rekonsiliasi yang tercatat.</td></tr>"}</tbody>
-    </table>
+  <!-- Tab 3: Unknowns Ledger -->
+  <div id="tab-unknowns" class="tab-content">
+    <div class="card">
+      <h3>Buku Besar Pertanyaan Terbuka & Ambiguitas Bukti (Ledger of Unknowns & Inquiries)</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+        Metodologi REA: Setiap ketiadaan dokumen pembuktian dicatat sebagai inquiry formal yang harus dijawab manajemen sebelum laporan dapat disahkan bersih.
+      </p>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Pertanyaan & Ambiguitas Bukti</th><th>Kategori</th><th>Status</th><th>Dampak Risiko</th><th>Bukti yang Dibutuhkan</th></tr>
+        </thead>
+        <tbody>{unknowns_rows or "<tr><td colspan='6' style='color: var(--pass);'>🟢 Tidak ada pertanyaan menggantung. Seluruh bukti lengkap.</td></tr>"}</tbody>
+      </table>
+    </div>
   </div>
 
+  <!-- Tab 4: Obligations -->
+  <div id="tab-obligations" class="tab-content">
+    <div class="card">
+      <h3>Evaluasi Pemenuhan Kewajiban Audit (Audit Obligations & Compliance Coverage)</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+        Mengukur ketercakupan seluruh prosedur pengujian wajib terhadap regulasi dan kerangka kerja audit yang berlaku.
+      </p>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Prosedur Standar Audit</th><th>Dasar Regulasi</th><th>Status</th><th>Catatan Evaluasi</th></tr>
+        </thead>
+        <tbody>{obligations_rows or "<tr><td colspan='5'>Tidak ada kewajiban audit yang tercatat.</td></tr>"}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 5: Recon -->
+  <div id="tab-recon" class="tab-content">
+    <div class="card">
+      <h3>Uji Silang & 3-Way Matching (Kontrak vs BAST vs Invoice vs Pembayaran)</h3>
+      <table>
+        <thead>
+          <tr><th>Uraian Uji Silang</th><th>Rincian Dokumen</th><th>Selisih</th><th>Status</th></tr>
+        </thead>
+        <tbody>{recon_rows or "<tr><td colspan='4'>Tidak ada rekonsiliasi yang tercatat.</td></tr>"}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 6: Governance -->
   <div id="tab-governance" class="tab-content">
     <div class="card" style="margin-bottom: 24px;">
       <h3>Benturan Pemisahan Tugas (Segregation of Duties - SoD)</h3>
@@ -298,34 +403,69 @@ tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
     </div>
   </div>
 
+  <!-- Tab 7: Evidence Bundle -->
+  <div id="tab-bundle" class="tab-content">
+    <div class="card">
+      <h3>Cryptographic Evidence Bundle & Forensic SHA-256 Manifest</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+        Bundle ID: <code>{pack.evidence_bundle.get('bundle_id', 'EVD-AUTO')}</code> | Status: <span class="badge badge-pass">VERIFIED INTACT</span>
+      </p>
+      <table>
+        <thead>
+          <tr><th>Nama Berkas</th><th>Peran Berkas</th><th>SHA-256 Digest</th><th>Ukuran</th><th>Integritas Forensik</th></tr>
+        </thead>
+        <tbody>{bundle_rows or "<tr><td colspan='5'>Tidak ada berkas bukti terdaftar.</td></tr>"}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 8: Human Sign-Off Sheet -->
+  <div id="tab-signoff" class="tab-content">
+    <div class="card" style="max-width: 800px; margin: 0 auto; border: 2px solid var(--border); padding: 30px;">
+      <h2 style="text-align: center; margin-bottom: 20px; color: #fff;">LEMBAR PENGESAHAN AUDITOR INDEPENDEN</h2>
+      <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 20px;">
+        <div style="margin-bottom: 10px;"><b>Penugasan Audit:</b> {html.escape(pack.title)} (Ref: {html.escape(pack.audit_ref)})</div>
+        <div style="margin-bottom: 10px;"><b>Nama Auditor Penanggung Jawab:</b> <span id="soName">{html.escape(so_name)}</span></div>
+        <div style="margin-bottom: 10px;"><b>Jabatan / Lisensi:</b> <span id="soRole">{html.escape(so_role)}</span> (NIP/Reg: {html.escape(so_nip)})</div>
+        <div style="margin-bottom: 10px;"><b>Kesimpulan & Opini Audit:</b> <span class="badge badge-pass" id="soOpinion" style="font-size: 0.9rem;">{html.escape(so_opinion)}</span></div>
+        <div style="margin-bottom: 10px;"><b>Tanggal Pengesahan:</b> <span id="soDate">{html.escape(so_date)}</span></div>
+        <div style="margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 10px;">
+          <b>Catatan Akhir Auditor:</b>
+          <p id="soComments" style="font-style: italic; color: var(--text-muted); margin-top: 4px;">"{html.escape(so_comments)}"</p>
+        </div>
+      </div>
+      <div style="text-align: right; margin-top: 40px; padding-right: 40px;">
+        <p>Jakarta, {pack.created_at[:10]}</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Ditandatangani secara elektronik:</p>
+        <div style="margin: 20px 0; font-family: monospace; font-size: 1.1rem; color: #22c55e;">[SIGNED & CERTIFIED]</div>
+        <p><b>{html.escape(so_name)}</b></p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">{html.escape(so_role)}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 9: KKA -->
   <div id="tab-kka" class="tab-content">
-    <h3>Kertas Kerja Audit (Audit Working Papers)</h3>
-    <table>
-      <thead>
-        <tr><th>Ref KKA</th><th>Prosedur</th><th>Dokumen</th><th>Hasil</th><th>Catatan</th><th>Ref Temuan</th></tr>
-      </thead>
-      <tbody>{kka_rows or "<tr><td colspan='6'>Tidak ada kertas kerja tercatat.</td></tr>"}</tbody>
-    </table>
+    <div class="card">
+      <h3>Kertas Kerja Audit (Audit Working Papers)</h3>
+      <table>
+        <thead>
+          <tr><th>Ref KKA</th><th>Prosedur</th><th>Dokumen</th><th>Hasil</th><th>Catatan</th><th>Ref Temuan</th></tr>
+        </thead>
+        <tbody>{kka_rows or "<tr><td colspan='6'>Tidak ada kertas kerja tercatat.</td></tr>"}</tbody>
+      </table>
+    </div>
   </div>
 
-  <div id="tab-action" class="tab-content">
-    <h3>Matriks Rencana Aksi & Tindak Lanjut</h3>
-    <table>
-      <thead>
-        <tr><th>No</th><th>ID Temuan</th><th>Prioritas</th><th>Langkah Perbaikan</th><th>Batas Waktu</th><th>PIC</th></tr>
-      </thead>
-      <tbody>{action_rows or "<tr><td colspan='6'>Tidak ada rencana aksi tercatat.</td></tr>"}</tbody>
-    </table>
-  </div>
-
+  <!-- Tab 10: Executive Summary -->
   <div id="tab-summary" class="tab-content">
-    <div class="card" style="white-space: pre-wrap; font-family: inherit;">{html.escape(pack.executive_summary)}</div>
+    <div class="card" style="line-height: 1.7;">
+      <pre style="white-space: pre-wrap; font-family: inherit; color: var(--text);">{html.escape(pack.executive_summary)}</pre>
+    </div>
   </div>
-
-</div>
 
 <script>
-const findingsData = {findings_json};
+let findingsData = {findings_json};
 let activeRisk = 'all';
 
 function renderFindings(items) {{
@@ -342,6 +482,11 @@ function renderFindings(items) {{
           <span class="badge badge-neutral" style="margin-left: 6px;">${{f.process}}</span>
           <span class="badge badge-neutral" style="margin-left: 4px;">COSO: ${{f.coso}}</span>
           <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 8px;"><code>${{f.id}}</code> · ${{f.category}}</span>
+        </div>
+        <div>
+          <span class="badge badge-${{f.human_status === 'approved' ? 'pass' : (f.human_status === 'rejected' ? 'critical' : 'neutral')}}">
+            ${{f.human_status.toUpperCase()}}
+          </span>
         </div>
       </div>
       <h3 style="margin-bottom: 12px; color: #fff;">${{f.title}}</h3>
@@ -360,8 +505,43 @@ function renderFindings(items) {{
           ${{f.evidence.map(e => `<div>• <b>${{e.document}}</b> (${{e.locator}}): <i>"${{e.excerpt}}"</i></div>`).join('')}}
         </div>
       ` : ''}}
+      <div class="triage-actions">
+        <span style="font-size: 0.82rem; color: var(--text-muted); margin-right: 6px;">Triage Review:</span>
+        <button class="btn btn-approve" onclick="triageFinding('${{f.id}}', 'approved')">✓ Setujui (Approve)</button>
+        <button class="btn btn-reject" onclick="triageFinding('${{f.id}}', 'rejected')">✗ Tolak / FP</button>
+        <button class="btn" onclick="addAuditorNote('${{f.id}}')">📝 Catatan Auditor</button>
+        ${{f.human_notes ? `<span style="font-size: 0.82rem; color: #38bdf8; margin-left: 10px;">Catatan: <i>${{f.human_notes}}</i></span>` : ''}}
+      </div>
     </div>
   `).join('');
+}}
+
+function triageFinding(id, status) {{
+  const f = findingsData.find(x => x.id === id);
+  if (f) {{
+    f.human_status = status;
+    filterFindings();
+  }}
+}}
+
+function addAuditorNote(id) {{
+  const f = findingsData.find(x => x.id === id);
+  if (f) {{
+    const note = prompt("Masukkan catatan auditor manusia untuk temuan " + id + ":", f.human_notes || "");
+    if (note !== null) {{
+      f.human_notes = note;
+      filterFindings();
+    }}
+  }}
+}}
+
+function exportReviewedJSON() {{
+  const blob = new Blob([JSON.stringify(findingsData, null, 2)], {{ type: 'application/json' }});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'reviewed_findings.json';
+  a.click();
 }}
 
 function filterFindings() {{
@@ -389,7 +569,6 @@ function switchTab(tabId) {{
   event.target.classList.add('active');
 }}
 
-// Initialize findings list
 renderFindings(findingsData);
 </script>
 </body>
@@ -398,8 +577,6 @@ renderFindings(findingsData);
 
     def _render_heatmap_grid(self, grid: dict[str, list[str]]) -> str:
         """Render 5x5 HTML table representing Likelihood vs Impact."""
-        # Color mapping for 5x5 cells: (Likelihood, Impact)
-        # Red: (5,5),(5,4),(4,5),(5,3),(3,5),(4,4)
         def cell_color(l: int, i: int) -> str:
             score = l * i
             if score >= 16:

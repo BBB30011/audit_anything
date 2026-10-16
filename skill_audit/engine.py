@@ -10,13 +10,17 @@ from skill_audit.analyzers.compliance import ComplianceAnalyzer
 from skill_audit.analyzers.cross_checker import CrossChecker
 from skill_audit.analyzers.governance_checker import GovernanceChecker
 from skill_audit.analyzers.math_checker import MathChecker
+from skill_audit.analyzers.obligation_engine import ObligationEngine
 from skill_audit.analyzers.risk_engine import RiskEngine
 from skill_audit.analyzers.sod_checker import SoDChecker
+from skill_audit.analyzers.unknowns_engine import UnknownsEngine
+from skill_audit.evidence_bundle import create_evidence_bundle
 from skill_audit.generators.llm_client import LLMClient
 from skill_audit.generators.report_gen import ReportGenerator
 from skill_audit.models import (
     AuditDomain,
     AuditMetric,
+    AuditObligation,
     AuditPack,
     ControlEvaluation,
     DoAViolation,
@@ -24,6 +28,7 @@ from skill_audit.models import (
     ReconciliationItem,
     RiskLevel,
     SoDConflict,
+    UnknownItem,
     WorkingPaperRow,
 )
 from skill_audit.parsers import parse_path
@@ -51,6 +56,8 @@ class AuditEngine:
         self.sod_checker = SoDChecker()
         self.governance_checker = GovernanceChecker()
         self.risk_engine = RiskEngine()
+        self.unknowns_engine = UnknownsEngine()
+        self.obligation_engine = ObligationEngine()
 
     def audit(
         self,
@@ -116,6 +123,15 @@ class AuditEngine:
         )
         action_plan = self.report_gen.generate_action_plan(all_findings)
 
+        # 11. REA Unknowns & Inquiries Ledger
+        unknowns = self.unknowns_engine.analyze(documents, all_findings)
+
+        # 12. REA Reconstruction & Audit Obligations Ledger
+        obligations, coverage_pct = self.obligation_engine.evaluate(documents, all_findings)
+
+        # 13. Cryptographic Evidence Bundle (SHA-256 digests and provenance)
+        evidence_bundle = create_evidence_bundle(documents, f"EVD-{ref_code}").to_dict()
+
         return AuditPack(
             title=audit_title,
             audit_ref=ref_code,
@@ -132,6 +148,9 @@ class AuditEngine:
             control_evaluations=control_evaluations,
             risk_heatmap=heatmap,
             governance_score=gov_score,
+            unknowns=unknowns,
+            obligations=obligations,
+            evidence_bundle=evidence_bundle,
             metrics=metrics,
             action_plan=action_plan,
             metadata={"source_path": str(path_obj.resolve())},
