@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from skill_audit.models import AuditDocument, Finding5C, UnknownItem, UnknownStatus
+from skill_audit.models import AuditDocument, AuditDomain, Finding5C, UnknownItem, UnknownStatus
 
 
 class UnknownsEngine:
@@ -20,6 +20,7 @@ class UnknownsEngine:
         self,
         documents: list[AuditDocument],
         findings: list[Finding5C],
+        domain: AuditDomain | str = AuditDomain.GENERAL,
     ) -> list[UnknownItem]:
         """Scan documents and findings to automatically identify evidentiary gaps and open inquiries."""
         unknowns: list[UnknownItem] = []
@@ -81,7 +82,71 @@ class UnknownsEngine:
             )
             idx += 1
 
-        # 4. Unknowns derived from unresolved 5C findings
+        # 4. Domain-Adaptive Evidentiary Checks
+        domain_str = domain.value if isinstance(domain, AuditDomain) else str(domain).lower()
+        full_corpus = " ".join(d.content.lower() for d in documents)
+
+        if domain_str == "healthcare" or any(k in full_corpus for k in ["pasien", "rawat inap", "rsud", "klaim bpjs"]):
+            has_resume = any("resume" in d.name.lower() or "discharge" in d.name.lower() for d in documents)
+            if not has_resume:
+                unknowns.append(
+                    UnknownItem(
+                        id=f"UNK-{idx:02d}",
+                        question="Apakah tindakan medis dan diagnosa pasien didukung Resume Medis (Discharge Summary) resmi DPJP?",
+                        category="Healthcare Clinical Proof",
+                        status=UnknownStatus.OPEN,
+                        impact="Potensi penolakan klaim BPJS/Asuransi atau indikasi upcoding tindakan tanpa persetujuan dokter.",
+                        evidence_required="Resume Medis Pasien yang ditandatangani Dokter Penanggung Jawab Pelayanan (DPJP).",
+                    )
+                )
+                idx += 1
+
+        if domain_str == "government" or any(k in full_corpus for k in ["apbn", "apbd", "dpa", "sp2d"]):
+            has_sp2d = any("sp2d" in d.name.lower() or "spm" in d.name.lower() for d in documents)
+            if not has_sp2d:
+                unknowns.append(
+                    UnknownItem(
+                        id=f"UNK-{idx:02d}",
+                        question="Apakah realisasi pembayaran beban anggaran telah diterbitkan Surat Perintah Pencairan Dana (SP2D)?",
+                        category="Public Sector Treasury",
+                        status=UnknownStatus.OPEN,
+                        impact="Ketidakpastian beban kas daerah/negara dan potensi temuan kepatuhan BPK atas belanja tanpa SP2D.",
+                        evidence_required="Lembar Asli SP2D bertandatangan Kuasa BUD dan SPM terverifikasi.",
+                    )
+                )
+                idx += 1
+
+        if domain_str == "hr_payroll" or any(k in full_corpus for k in ["payroll", "lembur", "slip gaji"]):
+            has_bpjs = any("bpjs" in d.name.lower() or "1721" in d.name.lower() for d in documents)
+            if not has_bpjs:
+                unknowns.append(
+                    UnknownItem(
+                        id=f"UNK-{idx:02d}",
+                        question="Apakah kewajiban iuran BPJS Ketenagakerjaan/Kesehatan dan pelaporan SPT PPh 21 telah disetor?",
+                        category="HR Statutory Compliance",
+                        status=UnknownStatus.OPEN,
+                        impact="Pelanggaran UU Ketenagakerjaan, denda administratif, dan hak jaminan sosial karyawan terabaikan.",
+                        evidence_required="Bukti Bayar Iuran BPJS Ketenagakerjaan & Bukti Penerimaan Elektronik (BPE) SPT PPh 21.",
+                    )
+                )
+                idx += 1
+
+        if domain_str == "supply_chain" or any(k in full_corpus for k in ["stock opname", "gudang", "inventory"]):
+            has_baso = any("baso" in d.name.lower() or "opname" in d.name.lower() for d in documents)
+            if not has_baso:
+                unknowns.append(
+                    UnknownItem(
+                        id=f"UNK-{idx:02d}",
+                        question="Apakah saldo stok sistem telah diverifikasi melalui Berita Acara Stock Opname (BASO) fisik?",
+                        category="Supply Chain & Physical Custody",
+                        status=UnknownStatus.OPEN,
+                        impact="Risiko kehilangan persediaan (inventory shrinkage), dead-stock tidak teridentifikasi, dan selisih neraca.",
+                        evidence_required="Berita Acara Stock Opname (BASO) fisik bertandatangan tim penghitung independen.",
+                    )
+                )
+                idx += 1
+
+        # 5. Unknowns derived from unresolved 5C findings
         for f in findings:
             if "fiktif" in f.cause.lower() or "anomali" in f.title.lower() or "kronologi" in f.title.lower():
                 unknowns.append(

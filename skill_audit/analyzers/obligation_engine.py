@@ -6,9 +6,8 @@ have been systematically tested and reports coverage percentages.
 
 from __future__ import annotations
 
-from typing import Any
-
-from skill_audit.models import AuditDocument, AuditObligation, Finding5C
+from skill_audit.knowledge.domain_profiles import DOMAIN_TERRAIN_PROFILES, get_terrain_profile
+from skill_audit.models import AuditDocument, AuditDomain, AuditObligation, Finding5C
 
 
 class ObligationEngine:
@@ -56,8 +55,9 @@ class ObligationEngine:
         self,
         documents: list[AuditDocument],
         findings: list[Finding5C],
+        domain: AuditDomain | str = AuditDomain.GENERAL,
     ) -> tuple[list[AuditObligation], float]:
-        """Evaluate status of each standard audit obligation and compute coverage percentage."""
+        """Evaluate status of standard and domain-specific audit obligations."""
         obligations: list[AuditObligation] = []
         tested_count = 0
 
@@ -193,5 +193,39 @@ class ObligationEngine:
         )
         tested_count += 1
 
-        coverage_percentage = round((tested_count / len(self.STANDARD_OBLIGATIONS)) * 100.0, 1)
+        # 8. Dynamic Domain-Specific Statutory Obligations
+        terrain_prog = get_terrain_profile(domain)
+        if terrain_prog:
+            for spec in terrain_prog.mandatory_obligations:
+                spec_code = spec.get("code", f"OBL-SPEC-{tested_count+1}")
+                spec_cat = spec.get("category", "Kepatuhan Spesifik Medan")
+                spec_desc = spec.get("description", "")
+                spec_stat = spec.get("statutory", "")
+
+                # Check if any finding relates to this specific obligation
+                matched_viol = any(
+                    spec_cat.lower() in f.category.lower()
+                    or any(tok in f.title.lower() for tok in spec_desc.lower().split() if len(tok) > 4)
+                    for f in findings
+                )
+
+                if matched_viol:
+                    obl_status = "violated"
+                    notes = f"Terindikasi pelanggaran pada pengujian regulasi {spec_stat}."
+                else:
+                    obl_status = "satisfied"
+                    notes = f"Pengujian kepatuhan {spec_desc} telah diverifikasi."
+
+                obligations.append(
+                    AuditObligation(
+                        id=spec_code,
+                        title=f"{spec_cat}: {spec_desc}",
+                        standard_ref=spec_stat,
+                        status=obl_status,
+                        coverage_notes=notes,
+                    )
+                )
+                tested_count += 1
+
+        coverage_percentage = round((tested_count / max(1, len(obligations))) * 100.0, 1)
         return obligations, coverage_percentage

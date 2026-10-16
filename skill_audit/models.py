@@ -44,7 +44,16 @@ class AuditDomain(str, Enum):
     COMPLIANCE = "compliance"
     IT_SECURITY = "it_security"
     INTERNAL_CONTROL = "internal_control"
+    HEALTHCARE = "healthcare"
+    GOVERNMENT = "government"
+    HR_PAYROLL = "hr_payroll"
+    SUPPLY_CHAIN = "supply_chain"
+    FORENSIC_FRAUD = "forensic_fraud"
+    TAX_CUSTOMS = "tax_customs"
+    BANKING_FINTECH = "banking_fintech"
+    ESG_SUSTAINABILITY = "esg_sustainability"
     GENERAL = "general"
+    AUTO = "auto"
 
 
 class DocType(str, Enum):
@@ -490,6 +499,108 @@ class HumanSignOff:
         )
 
 
+@dataclass
+class TerrainProfile:
+    """Multi-terrain domain classification and framework detection."""
+
+    primary_domain: str = "general"
+    detected_domains: list[str] = field(default_factory=list)
+    confidence: float = 1.0
+    detected_regulations: list[str] = field(default_factory=list)
+    key_entities: list[str] = field(default_factory=list)
+    recommended_checks: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "primary_domain": self.primary_domain,
+            "detected_domains": self.detected_domains,
+            "confidence": round(self.confidence, 2),
+            "detected_regulations": self.detected_regulations,
+            "key_entities": self.key_entities,
+            "recommended_checks": self.recommended_checks,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> TerrainProfile:
+        return cls(
+            primary_domain=str(data.get("primary_domain", "general")),
+            detected_domains=list(data.get("detected_domains", [])),
+            confidence=float(data.get("confidence", 1.0)),
+            detected_regulations=list(data.get("detected_regulations", [])),
+            key_entities=list(data.get("key_entities", [])),
+            recommended_checks=list(data.get("recommended_checks", [])),
+        )
+
+
+@dataclass
+class BenfordDigitStat:
+    """Statistical deviation of a single leading digit in Benford analysis."""
+
+    digit: int
+    actual_count: int
+    actual_pct: float
+    expected_pct: float
+    diff_pct: float
+    z_score: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "digit": self.digit,
+            "actual_count": self.actual_count,
+            "actual_pct": round(self.actual_pct, 2),
+            "expected_pct": round(self.expected_pct, 2),
+            "diff_pct": round(self.diff_pct, 2),
+            "z_score": round(self.z_score, 2),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> BenfordDigitStat:
+        return cls(
+            digit=int(data.get("digit", 0)),
+            actual_count=int(data.get("actual_count", 0)),
+            actual_pct=float(data.get("actual_pct", 0.0)),
+            expected_pct=float(data.get("expected_pct", 0.0)),
+            diff_pct=float(data.get("diff_pct", 0.0)),
+            z_score=float(data.get("z_score", 0.0)),
+        )
+
+
+@dataclass
+class BenfordAnalysisResult:
+    """Forensic Benford's Law distribution analysis across extracted numeric figures."""
+
+    total_numbers: int = 0
+    analyzed_digits: int = 0
+    conformity_status: str = "acceptable"  # close, acceptable, marginally_acceptable, non_conforming
+    mad_score: float = 0.0  # Mean Absolute Deviation
+    chi_square: float = 0.0
+    critical_anomalies: list[int] = field(default_factory=list)
+    digit_distribution: list[BenfordDigitStat] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "total_numbers": self.total_numbers,
+            "analyzed_digits": self.analyzed_digits,
+            "conformity_status": self.conformity_status,
+            "mad_score": round(self.mad_score, 4),
+            "chi_square": round(self.chi_square, 2),
+            "critical_anomalies": self.critical_anomalies,
+            "digit_distribution": [d.to_dict() for d in self.digit_distribution],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> BenfordAnalysisResult:
+        return cls(
+            total_numbers=int(data.get("total_numbers", 0)),
+            analyzed_digits=int(data.get("analyzed_digits", 0)),
+            conformity_status=str(data.get("conformity_status", "acceptable")),
+            mad_score=float(data.get("mad_score", 0.0)),
+            chi_square=float(data.get("chi_square", 0.0)),
+            critical_anomalies=list(data.get("critical_anomalies", [])),
+            digit_distribution=[BenfordDigitStat.from_dict(d) for d in data.get("digit_distribution", [])],
+        )
+
+
 # ======================================================================
 # Findings & Audit Records (5C Standard)
 # ======================================================================
@@ -755,6 +866,8 @@ class AuditPack:
     obligations: list[AuditObligation] = field(default_factory=list)
     evidence_bundle: dict[str, Any] = field(default_factory=dict)
     human_sign_off: HumanSignOff = field(default_factory=HumanSignOff)
+    terrain_profile: TerrainProfile = field(default_factory=TerrainProfile)
+    benford_analysis: BenfordAnalysisResult = field(default_factory=BenfordAnalysisResult)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -782,6 +895,8 @@ class AuditPack:
             "obligations": [o.to_dict() for o in self.obligations],
             "evidence_bundle": self.evidence_bundle,
             "human_sign_off": self.human_sign_off.to_dict(),
+            "terrain_profile": self.terrain_profile.to_dict(),
+            "benford_analysis": self.benford_analysis.to_dict(),
             "metadata": self.metadata,
         }
 
@@ -811,6 +926,8 @@ class AuditPack:
             obligations=[AuditObligation.from_dict(o) for o in data.get("obligations", [])],
             evidence_bundle=dict(data.get("evidence_bundle", {})),
             human_sign_off=HumanSignOff.from_dict(data.get("human_sign_off", {})),
+            terrain_profile=TerrainProfile.from_dict(data.get("terrain_profile", {})),
+            benford_analysis=BenfordAnalysisResult.from_dict(data.get("benford_analysis", {})),
             metadata=dict(data.get("metadata", {})),
         )
         return pack

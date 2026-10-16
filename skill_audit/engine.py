@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from skill_audit.analyzers.anomaly import AnomalyDetector
+from skill_audit.analyzers.benford_analyzer import BenfordForensicAnalyzer
 from skill_audit.analyzers.compliance import ComplianceAnalyzer
 from skill_audit.analyzers.cross_checker import CrossChecker
 from skill_audit.analyzers.governance_checker import GovernanceChecker
@@ -13,6 +14,7 @@ from skill_audit.analyzers.math_checker import MathChecker
 from skill_audit.analyzers.obligation_engine import ObligationEngine
 from skill_audit.analyzers.risk_engine import RiskEngine
 from skill_audit.analyzers.sod_checker import SoDChecker
+from skill_audit.analyzers.terrain_detector import DomainTerrainDetector
 from skill_audit.analyzers.unknowns_engine import UnknownsEngine
 from skill_audit.evidence_bundle import create_evidence_bundle
 from skill_audit.generators.llm_client import LLMClient
@@ -58,12 +60,14 @@ class AuditEngine:
         self.risk_engine = RiskEngine()
         self.unknowns_engine = UnknownsEngine()
         self.obligation_engine = ObligationEngine()
+        self.terrain_detector = DomainTerrainDetector()
+        self.benford_analyzer = BenfordForensicAnalyzer()
 
     def audit(
         self,
         target_path: str | Path,
         title: str | None = None,
-        domain: AuditDomain = AuditDomain.GENERAL,
+        domain: AuditDomain = AuditDomain.AUTO,
         audit_ref: str | None = None,
     ) -> AuditPack:
         """Run full audit pipeline on a single document or an entire dossier."""
@@ -71,6 +75,16 @@ class AuditEngine:
         documents = parse_path(path_obj)
         if not documents:
             raise ValueError(f"No parseable audit documents found in: {target_path}")
+
+        # 0. Multi-Terrain Domain Classification
+        terrain_profile = self.terrain_detector.detect(documents)
+        if domain == AuditDomain.AUTO:
+            try:
+                effective_domain = AuditDomain(terrain_profile.primary_domain)
+            except ValueError:
+                effective_domain = AuditDomain.GENERAL
+        else:
+            effective_domain = domain
 
         audit_title = title or f"Audit Berkas {path_obj.stem.replace('_', ' ').title()}"
         ref_code = audit_ref or f"AUD-{path_obj.stem.upper()[:6]}-01"
@@ -92,51 +106,57 @@ class AuditEngine:
         anom_findings = self.anomaly_detector.analyze(documents)
         all_findings.extend(anom_findings)
 
-        # 4. Framework Checklist Compliance Check
+        # 4. Forensic Benford's Law Digital Analysis
+        benford_result, benford_findings = self.benford_analyzer.analyze(documents)
+        all_findings.extend(benford_findings)
+
+        # 5. Framework Checklist Compliance Check
         comp_findings, comp_papers, comp_score = self.compliance_analyzer.analyze(
             documents, self.checklist_config
         )
         all_findings.extend(comp_findings)
         all_working_papers.extend(comp_papers)
 
-        # 5. Segregation of Duties (SoD) Conflicts
+        # 6. Segregation of Duties (SoD) Conflicts
         sod_findings, sod_conflicts = self.sod_checker.analyze(documents)
         all_findings.extend(sod_findings)
 
-        # 6. Corporate Governance & Delegation of Authority (DoA) Limits
+        # 7. Corporate Governance & Delegation of Authority (DoA) Limits
         gov_findings, doa_violations, gov_score = self.governance_checker.analyze(documents)
         all_findings.extend(gov_findings)
 
-        # 7. Normalize Finding IDs sequentially
+        # 8. Normalize Finding IDs sequentially
         for idx, finding in enumerate(all_findings, 1):
             finding.id = f"FND-{idx:03d}"
 
-        # 8. Enterprise Risk Management (ERM) 5x5 Heatmap & COSO Mapping
+        # 9. Enterprise Risk Management (ERM) 5x5 Heatmap & COSO Mapping
         heatmap, control_evaluations = self.risk_engine.evaluate_and_enrich(all_findings)
 
-        # 9. Compute Quantitative Metrics
+        # 10. Compute Quantitative Metrics
         metrics = self._calculate_metrics(documents, all_findings, comp_score, math_findings)
 
-        # 10. Executive Summary & Action Plan
+        # 11. Executive Summary & Action Plan
         exec_summary = self.report_gen.generate_executive_summary(
             audit_title, documents, all_findings, metrics
         )
         action_plan = self.report_gen.generate_action_plan(all_findings)
 
-        # 11. REA Unknowns & Inquiries Ledger
-        unknowns = self.unknowns_engine.analyze(documents, all_findings)
+        # 12. REA Unknowns & Inquiries Ledger (Domain-Adaptive)
+        unknowns = self.unknowns_engine.analyze(documents, all_findings, domain=effective_domain)
 
-        # 12. REA Reconstruction & Audit Obligations Ledger
-        obligations, coverage_pct = self.obligation_engine.evaluate(documents, all_findings)
+        # 13. REA Reconstruction & Audit Obligations Ledger (Domain-Adaptive)
+        obligations, coverage_pct = self.obligation_engine.evaluate(
+            documents, all_findings, domain=effective_domain
+        )
 
-        # 13. Cryptographic Evidence Bundle (SHA-256 digests and provenance)
+        # 14. Cryptographic Evidence Bundle (SHA-256 digests and provenance)
         evidence_bundle = create_evidence_bundle(documents, f"EVD-{ref_code}").to_dict()
 
         return AuditPack(
             title=audit_title,
             audit_ref=ref_code,
             lead_auditor=self.lead_auditor,
-            domain=domain,
+            domain=effective_domain,
             executive_summary=exec_summary,
             scope=f"Pemeriksaan komprehensif atas {len(documents)} dokumen pada {path_obj.name}.",
             documents=documents,
@@ -151,6 +171,8 @@ class AuditEngine:
             unknowns=unknowns,
             obligations=obligations,
             evidence_bundle=evidence_bundle,
+            terrain_profile=terrain_profile,
+            benford_analysis=benford_result,
             metrics=metrics,
             action_plan=action_plan,
             metadata={"source_path": str(path_obj.resolve())},

@@ -39,6 +39,9 @@ class ReportExporter:
             f"- **Sedang (Medium):** {pack.metrics.findings_by_risk.get('medium', 0)}",
             f"- **Rendah (Low):** {pack.metrics.findings_by_risk.get('low', 0)}",
             "",
+            f"**Medan / Domain Audit Terdeteksi:** `{pack.domain.value.upper()}` (Tingkat Keyakinan: {pack.terrain_profile.confidence*100:.0f}%)  ",
+            f"**Regulasi / Standar Acuan Teridentifikasi:** {', '.join(pack.terrain_profile.detected_regulations) if pack.terrain_profile.detected_regulations else 'Standar Pemeriksaan Internal Umum'}  ",
+            "",
             "---",
             "",
             "## 2. RUANG LINGKUP & DOKUMEN YANG DIPERIKSA",
@@ -123,12 +126,42 @@ class ReportExporter:
                 f"{step['action_required']} | {step['target_days']} Hari | {step['pic']} |"
             )
 
-        # 7. REA Ledger of Unknowns (Inquiries)
+        # 7. Forensic Digital Analysis (Benford's Law)
+        bn = pack.benford_analysis
+        bn_status = bn.conformity_status.replace("_", " ").title()
         lines.extend([
             "",
             "---",
             "",
-            "## 7. BUKU BESAR PERTANYAAN TERBUKA (LEDGER OF UNKNOWNS & INQUIRIES)",
+            "## 7. ANALISIS FORENSIK DIGITAL (UJI HUKUM DISTRIBUSI BENFORD'S LAW)",
+            f"> *Standar Forensik Nigrini (2012) & ISA 240: Menguji kealamian sebaran angka transaksi untuk mendeteksi rekayasa dan kecurangan.*",
+            "",
+            f"- **Status Kesesuaian Distribusi:** `{bn_status.upper()}`",
+            f"- **Skor Mean Absolute Deviation (MAD):** `{bn.mad_score:.4f}` (Ambang batas wajar <= 0.012)",
+            f"- **Skor Chi-Square:** `{bn.chi_square:.2f}` | **Total Sampel Angka Diuji:** `{bn.analyzed_digits}`",
+            f"- **Digit Anomali Deviasi Kritis (|Z| > 2.58):** {', '.join(f'Digit {d}' for d in bn.critical_anomalies) if bn.critical_anomalies else 'Tidak ada (Distribusi Wajar)'}",
+            "",
+        ])
+        if bn.digit_distribution:
+            lines.extend([
+                "| Digit | Frekuensi Aktual | Aktual (%) | Standar Benford (%) | Selisih (%) | Z-Score | Status Forensik |",
+                "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|",
+            ])
+            for d in bn.digit_distribution:
+                is_anom = d.digit in bn.critical_anomalies
+                stat_badge = "🔴 **ANOMALI**" if is_anom else "🟢 Wajar"
+                diff_sign = "+" if d.diff_pct > 0 else ""
+                lines.append(
+                    f"| **{d.digit}** | {d.actual_count} | {d.actual_pct:.1f}% | {d.expected_pct:.1f}% | {diff_sign}{d.diff_pct:.1f}% | {d.z_score:.2f} | {stat_badge} |"
+                )
+            lines.append("")
+
+        # 8. REA Ledger of Unknowns (Inquiries)
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 8. BUKU BESAR PERTANYAAN TERBUKA (LEDGER OF UNKNOWNS & INQUIRIES)",
             "> *Metodologi REA: Seluruh ambiguitas bukti dan dokumen yang belum diperoleh dicatat sebagai inquiry resmi.*",
             "",
         ])
@@ -143,12 +176,12 @@ class ReportExporter:
         else:
             lines.append("> 🟢 **Seluruh Bukti Lengkap:** Tidak terdapat pertanyaan atau ambiguitas bukti yang menggantung.\n")
 
-        # 8. REA Audit Obligations & Coverage
+        # 9. REA Audit Obligations & Coverage
         lines.extend([
             "",
             "---",
             "",
-            "## 8. EVALUASI PEMENUHAN KEWAJIBAN AUDIT (AUDIT OBLIGATIONS COVERAGE)",
+            "## 9. EVALUASI PEMENUHAN KEWAJIBAN AUDIT (AUDIT OBLIGATIONS COVERAGE)",
             "> *Metodologi REA: Pemenuhan kewajiban pengujian standar sesuai regulasi dan kerangka kerja.*",
             "",
         ])
@@ -160,12 +193,12 @@ class ReportExporter:
                 lines.append(f"| `{o.id}` | **{o.title}** | {o.standard_ref} | `{st_icon}` | {o.coverage_notes} |")
             lines.append("")
 
-        # 9. Cryptographic Evidence Bundle Manifest
+        # 10. Cryptographic Evidence Bundle Manifest
         lines.extend([
             "",
             "---",
             "",
-            "## 9. MANIFES BERKAS BUKTI & INTEGRITAS KRIPTOGRAFIS (EVIDENCE BUNDLE)",
+            "## 10. MANIFES BERKAS BUKTI & INTEGRITAS KRIPTOGRAFIS (EVIDENCE BUNDLE)",
             "> *Nilai Hash SHA-256 menjamin keaslian bukti audit dan deteksi manipulasi (Tamper-Evident).*  ",
             f"**Bundle ID:** `{pack.evidence_bundle.get('bundle_id', 'EVD-AUTO')}` | "
             f"**Status Integritas:** `🟢 {pack.evidence_bundle.get('integrity_status', 'VERIFIED_INTACT').upper()}`",
@@ -177,12 +210,12 @@ class ReportExporter:
             hash_abbr = f"{f.get('content_sha256', '')[:16]}...{f.get('content_sha256', '')[-12:]}"
             lines.append(f"| `{f.get('name')}` | `{f.get('role_in_dossier')}` | `{hash_abbr}` | {f.get('size_bytes', 0)} B | 🟢 Verified Intact |")
 
-        # 10. Human Sign-Off Sheet
+        # 11. Human Sign-Off Sheet
         lines.extend([
             "",
             "---",
             "",
-            "## 10. LEMBAR PENGESAHAN & OPINI AUDITOR MANUSIA (HUMAN SIGN-OFF)",
+            "## 11. LEMBAR PENGESAHAN & OPINI AUDITOR MANUSIA (HUMAN SIGN-OFF)",
         ])
         so = pack.human_sign_off
         if so.is_signed:

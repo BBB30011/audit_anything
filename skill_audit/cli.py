@@ -25,7 +25,11 @@ from skill_audit.exporters import (
     SkillExporter,
     WebExporter,
 )
+from skill_audit.analyzers.benford_analyzer import BenfordForensicAnalyzer
+from skill_audit.analyzers.terrain_detector import DomainTerrainDetector
+from skill_audit.knowledge.domain_profiles import DOMAIN_TERRAIN_PROFILES, list_all_terrains
 from skill_audit.models import AuditDomain, AuditPack, HumanSignOff, RiskLevel, UnknownStatus
+from skill_audit.parsers import parse_path
 from skill_audit.triage import run_interactive_triage
 from skill_audit.validation import validate_audit_pack
 
@@ -581,6 +585,132 @@ def signoff_cmd(pack_file: str, name: str, role: str, nip: str, opinion: str, no
     console.print(f"  • Disimpan ke      : [green]{p}[/]")
 
 
+@cli.command("audit")
+@click.argument("target_path", type=click.Path(exists=True))
+@click.option("--output", "-o", default="output", help="Output directory for generated audit pack.")
+@click.option("--format", "-f", "fmt", type=click.Choice(["pack", "report", "web", "csv", "all"]), default="all", help="Output format.")
+@click.option("--domain", "-d", default="auto", help="Audit domain/terrain (auto, procurement, financial, healthcare, government, hr_payroll, supply_chain, forensic_fraud, tax_customs, banking_fintech, esg_sustainability, it_security).")
+@click.option("--checklist", "-c", default=None, help="Path to custom checklist YAML file.")
+@click.option("--title", "-t", default=None, help="Custom audit title.")
+def audit_universal(target_path: str, output: str, fmt: str, domain: str, checklist: str | None, title: str | None) -> None:
+    """Universal audit command for any document, dossier, or multi-domain evidence folder."""
+    p = Path(target_path)
+    console.print(f"[bold cyan]🔍 Menjalankan Audit Anything (Segala Medan):[/] [white]{p.name}[/]")
+
+    try:
+        domain_enum = AuditDomain(domain.lower())
+    except ValueError:
+        domain_enum = AuditDomain.AUTO
+
+    engine = AuditEngine(checklist_config=checklist)
+    pack = engine.audit(p, title=title, domain=domain_enum)
+    _render_summary_panel(pack)
+    _export_deliverables(pack, output, fmt)
+
+
+@cli.command("benford")
+@click.argument("target", type=click.Path(exists=True))
+def benford_cmd(target: str) -> None:
+    """Run forensic Benford's Law distribution analysis across all numeric figures."""
+    p = Path(target)
+    if p.suffix.lower() in [".yaml", ".yml", ".json"]:
+        pack = AuditPack.from_yaml(p)
+        benford_res = pack.benford_analysis
+        total_nums = benford_res.total_numbers
+        analyzed = benford_res.analyzed_digits
+        mad = benford_res.mad_score
+        chi_sq = benford_res.chi_square
+        status = benford_res.conformity_status
+        anomalies = benford_res.critical_anomalies
+        dist = benford_res.digit_distribution
+    else:
+        documents = parse_path(p)
+        analyzer = BenfordForensicAnalyzer()
+        benford_res, _ = analyzer.analyze(documents)
+        total_nums = benford_res.total_numbers
+        analyzed = benford_res.analyzed_digits
+        mad = benford_res.mad_score
+        chi_sq = benford_res.chi_square
+        status = benford_res.conformity_status
+        anomalies = benford_res.critical_anomalies
+        dist = benford_res.digit_distribution
+
+    console.print(f"\n[bold magenta]📈 Analisis Forensik Digital: Uji Distribusi Benford's Law[/]")
+    console.print(f"Target: [bold white]{p.name}[/] | Total Angka: {total_nums} | Sampel Digit: {analyzed}")
+    console.print(f"Status Kesesuaian: [bold {'green' if 'acceptable' in status or 'close' in status else 'red'}]{status.upper()}[/] | Skor MAD: {mad:.4f} | Chi-Square: {chi_sq:.2f}\n")
+
+    table = Table(title="Sebaran Digit Pertama vs. Distribusi Standar Benford (Nigrini 2012)", border_style="magenta")
+    table.add_column("Digit", justify="center", style="bold")
+    table.add_column("Jumlah Aktual", justify="right")
+    table.add_column("Aktual (%)", justify="right")
+    table.add_column("Benford Ekspektasi (%)", justify="right")
+    table.add_column("Selisih (%)", justify="right")
+    table.add_column("Z-Score", justify="right")
+    table.add_column("Status Forensik", justify="center")
+
+    for d in dist:
+        is_anom = d.digit in anomalies
+        stat_label = "[bold red]ANOMALI[/]" if is_anom else "[green]Wajar[/]"
+        table.add_row(
+            str(d.digit),
+            str(d.actual_count),
+            f"{d.actual_pct:.1f}%",
+            f"{d.expected_pct:.1f}%",
+            f"{'+' if d.diff_pct > 0 else ''}{d.diff_pct:.1f}%",
+            f"{d.z_score:.2f}",
+            stat_label,
+        )
+
+    console.print(table)
+    if anomalies:
+        console.print(f"[bold red]⚠️ PERINGATAN FORENSIK:[/] Lonjakan deviasi signifikan terdeteksi pada digit: {anomalies}. Disarankan pengujian substantif 100%.")
+    else:
+        console.print("[bold green]✓ Distribusi angka transaksi berada dalam batas wajar alami.[/]")
+
+
+@cli.command("terrain")
+@click.argument("target_path", type=click.Path(exists=True))
+def terrain_cmd(target_path: str) -> None:
+    """Classify and inspect the operational audit terrain of a document dossier."""
+    p = Path(target_path)
+    documents = parse_path(p)
+    detector = DomainTerrainDetector()
+    profile = detector.detect(documents)
+
+    console.print(f"\n[bold cyan]🌐 Klasifikasi Medan Audit (Terrain Detection)[/]")
+    console.print(f"Target Dossier    : [bold white]{p.name}[/] ({len(documents)} berkas)")
+    console.print(f"Medan Utama       : [bold green]{profile.primary_domain.upper()}[/] (Confidence: {profile.confidence*100:.0f}%)")
+    console.print(f"Medan Terdeteksi  : [cyan]{', '.join(d.upper() for d in profile.detected_domains)}[/]")
+
+    if profile.detected_regulations:
+        console.print(f"Regulasi Terkait  : [yellow]{', '.join(profile.detected_regulations)}[/]")
+    if profile.key_entities:
+        console.print(f"Entitas Terdeteksi: [white]{', '.join(profile.key_entities)}[/]")
+
+    console.print("\n[bold]Rekomendasi Prosedur Uji Spesifik Medan:[/]")
+    for idx, check in enumerate(profile.recommended_checks, 1):
+        console.print(f"  {idx}. {check}")
+
+
+@cli.command("profiles")
+def profiles_cmd() -> None:
+    """List all supported audit domain terrains and their regulatory frameworks."""
+    terrains = list_all_terrains()
+    table = Table(title="Daftar Medan Audit Universal (Auditor Anything)", border_style="cyan")
+    table.add_column("Domain / Terrain", style="bold green")
+    table.add_column("Judul Program")
+    table.add_column("Regulasi / Standar Acuan")
+    table.add_column("Fokus Red Flags Utama")
+
+    for t in terrains:
+        table.add_row(
+            t.domain.value.upper(),
+            t.title,
+            "; ".join(t.statutory_references[:2]),
+            "; ".join(t.key_red_flags[:2]),
+        )
+    console.print(table)
+
 
 # ======================================================================
 # Internal Helpers
@@ -593,8 +723,13 @@ def _render_summary_panel(pack: AuditPack) -> None:
     med = pack.metrics.findings_by_risk.get("medium", 0)
     low = pack.metrics.findings_by_risk.get("low", 0)
 
+    domain_str = pack.domain.value.upper()
+    benford_status = pack.benford_analysis.conformity_status.replace("_", " ").title()
+
     summary_text = (
         f"[bold white]{pack.title}[/]  (Ref: `{pack.audit_ref}`)\n\n"
+        f"• Medan / Domain Audit : [bold cyan]{domain_str}[/] (Confidence: {pack.terrain_profile.confidence*100:.0f}%)\n"
+        f"• Forensik Benford     : [bold {'green' if 'Acceptable' in benford_status or 'Close' in benford_status else 'red'}]{benford_status}[/] (MAD: {pack.benford_analysis.mad_score:.4f})\n"
         f"• Total Dokumen Diuji  : [cyan]{len(pack.documents)} Berkas[/]\n"
         f"• Skor Kepatuhan       : [bold {'green' if pack.metrics.compliance_score >= 80 else 'red'}]{pack.metrics.compliance_score:.1f}%[/]\n"
         f"• Akurasi Aritmatika   : [bold {'green' if pack.metrics.arithmetic_accuracy >= 90 else 'yellow'}]{pack.metrics.arithmetic_accuracy:.1f}%[/]\n"
@@ -602,7 +737,7 @@ def _render_summary_panel(pack: AuditPack) -> None:
         f"• Total Temuan         : [bold]{len(pack.findings)}[/] "
         f"([red]{crit} Kritis[/], [orange3]{high} Tinggi[/], [yellow]{med} Sedang[/], [green]{low} Rendah[/])"
     )
-    console.print(Panel(summary_text, title="📊 Ringkasan Hasil Pemeriksaan Audit", border_style="blue"))
+    console.print(Panel(summary_text, title="📊 Ringkasan Hasil Pemeriksaan Audit (Segala Medan)", border_style="blue"))
 
 
 def _export_deliverables(pack: AuditPack, output_dir: str, fmt: str) -> None:

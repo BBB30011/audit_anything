@@ -16,18 +16,20 @@ flowchart TD
         PACK --> SHA["Cryptographic Hasher\n(SHA-256 Forensic Fingerprinting)"]
     end
 
-    subgraph ISOLATION ["2. REA Untrusted Boundary Isolation"]
+    subgraph ISOLATION ["2. Classification & REA Untrusted Provenance Isolation"]
         SHA --> UNTRUSTED["_meta.provenance.untrusted_content = True\n(Prompt-Injection & Payload Sandboxing)"]
+        UNTRUSTED --> CLASSIFIER["Multi-Terrain Domain Classifier\n(DomainTerrainDetector: 12+ Domains)"]
     end
 
     subgraph ANALYZERS ["3. Multi-Pillar & REA Forensic Engine"]
-        UNTRUSTED --> P1["Pillar 1: Business Process\n(3-Way Match, Pricing, Tax)"]
-        UNTRUSTED --> P2["Pillar 2: Technical & ITGC\n(Change Mgmt, Passwords, Backups)"]
-        UNTRUSTED --> P3["Pillar 3: Corporate Governance\n(DoA, SoD, Conflict of Interest)"]
-        UNTRUSTED --> P4["Pillar 4: COSO Internal Controls\n(Control Activities, Monitoring)"]
-        UNTRUSTED --> P5["Pillar 5: ISO 31000 Risk Mgmt\n(5x5 Matrix, Inherent/Residual)"]
-        UNTRUSTED --> REA_UNK["REA Unknowns Engine\n(Missing Records & Gap Detection)"]
-        UNTRUSTED --> REA_OBL["REA Obligation Engine\n(Statutory & Framework Coverage)"]
+        CLASSIFIER --> P1["Pillar 1: Business Process\n(3-Way Match, Pricing, Tax)"]
+        CLASSIFIER --> P2["Pillar 2: Technical & ITGC\n(Change Mgmt, Passwords, Backups)"]
+        CLASSIFIER --> P3["Pillar 3: Corporate Governance\n(DoA, SoD, Conflict of Interest)"]
+        CLASSIFIER --> P4["Pillar 4: COSO Internal Controls\n(Control Activities, Monitoring)"]
+        CLASSIFIER --> P5["Pillar 5: ISO 31000 Risk Mgmt\n(5x5 Matrix, Inherent/Residual)"]
+        CLASSIFIER --> BENFORD["Forensic Benford's Law Engine\n(Nigrini 2012 Digital Distribution)"]
+        CLASSIFIER --> REA_UNK["REA Unknowns Engine\n(Domain-Adaptive Evidentiary Gaps)"]
+        CLASSIFIER --> REA_OBL["REA Obligation Engine\n(Domain-Adaptive Statutory Coverage)"]
     end
 
     subgraph SYNTHESIS ["4. Evidence Bundle & Finding Synthesis"]

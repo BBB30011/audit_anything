@@ -181,6 +181,22 @@ class WebExporter:
         so_comments = so.comments or "Pengendalian internal memadai dengan beberapa catatan koreksi administratif."
         so_badge = '<span class="badge badge-pass">DITANDATANGANI</span>' if so.is_signed else '<span class="badge badge-medium">MENUNGGU PENGESAHAN</span>'
 
+        # Build Benford table rows
+        benford_rows = ""
+        for d in pack.benford_analysis.digit_distribution:
+            is_anom = d.digit in pack.benford_analysis.critical_anomalies
+            stat_badge = '<span class="badge badge-critical">ANOMALI</span>' if is_anom else '<span class="badge badge-pass">WAJAR</span>'
+            diff_sign = "+" if d.diff_pct > 0 else ""
+            benford_rows += (
+                f"<tr><td><b>{d.digit}</b></td>"
+                f"<td>{d.actual_count}</td>"
+                f"<td><div style='display: flex; align-items: center; gap: 8px;'><div style='width: 80px; height: 8px; background: #334155; border-radius: 4px; overflow: hidden;'><div style='width: {min(100, int(d.actual_pct*2.5))}%; height: 100%; background: {'#ef4444' if is_anom else '#3b82f6'};'></div></div>{d.actual_pct:.1f}%</div></td>"
+                f"<td>{d.expected_pct:.1f}%</td>"
+                f"<td style='color: {'#ef4444' if is_anom else 'inherit'};'>{diff_sign}{d.diff_pct:.1f}%</td>"
+                f"<td>{d.z_score:.2f}</td>"
+                f"<td>{stat_badge}</td></tr>"
+            )
+
         return f"""<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -263,7 +279,7 @@ class WebExporter:
       <div class="meta-pills">
         <span class="pill">Referensi: <b>{html.escape(pack.audit_ref)}</b></span>
         <span class="pill">Lead Auditor: <b>{html.escape(pack.lead_auditor)}</b></span>
-        <span class="pill">Domain: <b>{html.escape(pack.domain.value.upper())}</b></span>
+        <span class="pill" style="border-color: #38bdf8; color: #38bdf8;">Medan: <b>{html.escape(pack.domain.value.upper())} ({pack.terrain_profile.confidence*100:.0f}%)</b></span>
         <span class="pill">Tanggal: <b>{pack.created_at[:10]}</b></span>
         <span class="pill">Dokumen: <b>{len(pack.documents)} Berkas</b></span>
         <span class="pill">Human Sign-off: {so_badge}</span>
@@ -292,15 +308,16 @@ class WebExporter:
       <div class="card-sub">Kritis: {crit_count} | Tinggi: {high_count} | Sedang: {med_count}</div>
     </div>
     <div class="card">
-      <div class="card-label">Grounding Rate (Bukti Riil)</div>
-      <div class="card-value">{pack.metrics.evidence_grounding_rate:.1f}%</div>
-      <div class="card-sub">Temuan dengan kutipan dokumen sumber</div>
+      <div class="card-label">Forensik Benford</div>
+      <div class="card-value" style="font-size: 1.1rem; color: {('#22c55e' if 'acceptable' in pack.benford_analysis.conformity_status or 'close' in pack.benford_analysis.conformity_status else '#ef4444')};">{pack.benford_analysis.conformity_status.replace('_', ' ').upper()}</div>
+      <div class="card-sub">MAD: {pack.benford_analysis.mad_score:.4f} ({pack.benford_analysis.analyzed_digits} angka)</div>
     </div>
   </div>
 
   <div class="nav-tabs">
     <button class="tab-btn active" onclick="switchTab('findings')">📋 Temuan Audit ({len(pack.findings)})</button>
     <button class="tab-btn" onclick="switchTab('heatmap')">🔥 Matriks Risiko 5x5</button>
+    <button class="tab-btn" onclick="switchTab('benford')">📈 Forensik Benford ({pack.benford_analysis.analyzed_digits})</button>
     <button class="tab-btn" onclick="switchTab('unknowns')">❓ Inquiries / Unknowns ({len(pack.unknowns)})</button>
     <button class="tab-btn" onclick="switchTab('obligations')">🛡️ Kewajiban Audit ({len(pack.obligations)})</button>
     <button class="tab-btn" onclick="switchTab('recon')">⚖️ Rekonsiliasi 3-Way ({len(pack.reconciliations)})</button>
@@ -332,6 +349,28 @@ class WebExporter:
         Memetakan probabilitas terjadinya risiko (Likelihood) terhadap besaran kerugian (Impact) serta memperhitungkan efektivitas kontrol penanganan.
       </p>
       {heatmap_html}
+    </div>
+  </div>
+
+  <!-- Tab Benford: Forensic Digital Analysis -->
+  <div id="tab-benford" class="tab-content">
+    <div class="card">
+      <h3>Analisis Forensik Digital: Uji Distribusi Angka Benford's Law (Nigrini 2012)</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+        Standar Forensik Nigrini & ISA 240: Menguji kealamian sebaran digit pertama pada seluruh transaksi keuangan untuk mendeteksi rekayasa angka.
+      </p>
+      <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <span class="pill">Status: <b>{pack.benford_analysis.conformity_status.upper()}</b></span>
+        <span class="pill">Skor MAD: <b>{pack.benford_analysis.mad_score:.4f}</b> (Batas Normal: &le; 0.012)</span>
+        <span class="pill">Chi-Square: <b>{pack.benford_analysis.chi_square:.2f}</b></span>
+        <span class="pill">Sampel Angka Diuji: <b>{pack.benford_analysis.analyzed_digits} Angka</b></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Digit Awalan</th><th>Jumlah Muncul</th><th>Aktual (%)</th><th>Standar Benford (%)</th><th>Selisih (%)</th><th>Z-Score</th><th>Status Forensik</th></tr>
+        </thead>
+        <tbody>{benford_rows or "<tr><td colspan='7'>Data numerik belum mencukupi untuk uji Benford.</td></tr>"}</tbody>
+      </table>
     </div>
   </div>
 
