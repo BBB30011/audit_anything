@@ -1,0 +1,38 @@
+name: "Audit Kontrak dan Perjanjian Legal"
+description: "Kerangka audit legal untuk memastikan perlindungan hak hukum, kepatuhan klausul esensial, dan mitigasi risiko sengketa."
+items:
+  - ref_no: "KKA-LEG-01"
+    title: "Identitas dan Kewenangan Para Pihak (Legal Capacity)"
+    criteria: "KUHPerdata Pasal 1320: Syarat sahnya perjanjian mencakup kesepakatan dan kecakapan bertindak menurut hukum."
+    keywords: ["pihak pertama", "pihak kedua", "akta pendirian", "anggaran dasar", "bertindak untuk dan atas nama"]
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Perjanjian batal demi hukum jika ditandatangani pihak tanpa legalitas/wewenang."
+    recommendation: "Verifikasi akta notaris dan surat kuasa pihak penandatangan."
+
+  - ref_no: "KKA-LEG-02"
+    title: "Batasan Tanggung Jawab & Ganti Rugi (Indemnification & Liability)"
+    criteria: "Standar Hukum Kontrak Komersial: Kontrak harus memuat batasan ganti rugi (limitation of liability) dan klausul ganti rugi kerugian pihak ketiga."
+    keywords: ["ganti rugi", "tanggung jawab", "indemnifikasi", "liability", "kerugian"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Eksposur liabilitas finansial tak terbatas atas kerugian tidak langsung atau tuntutan pihak ketiga."
+    recommendation: "Cantumkan batas maksimum liabilitas (liability cap, misal 100% nilai kontrak)."
+
+  - ref_no: "KKA-LEG-03"
+    title: "Kerahasiaan Informasi (Confidentiality / NDA)"
+    criteria: "UU Perlindungan Data Pribadi & Standar Bisnis: Perlindungan informasi rahasia bisnis dan data sensitif."
+    keywords: ["kerahasiaan", "confidential", "rahasia dagang", "nda", "data pribadi"]
+    mandatory: true
+    risk_level: "medium"
+    consequence: "Kebocoran data bisnis rahasia tanpa sanksi hukum yang dapat ditegakkan."
+    recommendation: "Masukkan klausul kerahasiaan yang berlaku minimal 2-3 tahun pasca berakhirnya kontrak."
+
+  - ref_no: "KKA-LEG-04"
+    title: "Pengakhiran Perjanjian (Termination Clause)"
+    criteria: "KUHPerdata Pasal 1266: Pengesampingan ketentuan pengesahan pengadilan untuk pemutusan sepihak jika terjadi wanprestasi."
+    keywords: ["pengakhiran", "terminasi", "pemutusan", "pasal 1266", "wanprestasi"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Kesulitan mengakhiri kontrak jika vendor gagal berkinerja (terikat prosedur pengadilan yang lama)."
+    recommendation: "Sampingkan Pasal 1266 KUHPerdata untuk efektivitas pemutusan kontrak sepihak saat wanprestasi."

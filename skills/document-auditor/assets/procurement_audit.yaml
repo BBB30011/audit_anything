@@ -1,0 +1,61 @@
+name: "Audit Pengadaan Barang dan Jasa (PBJ)"
+description: "Kerangka audit komprehensif untuk pengadaan barang/jasa berdasarkan Perpres No. 16/2018 jo No. 12/2021 dan standar 3-Way Matching."
+items:
+  - ref_no: "KKA-PBJ-01"
+    title: "Dasar Perikatan Sah (SPK / Kontrak / Surat Pesanan)"
+    criteria: "Perpres PBJ Pasal 27: Pengadaan barang/jasa bernilai tertentu wajib diikat dalam Surat Perintah Kerja (SPK) atau Surat Perjanjian Kontrak resmi."
+    keywords: ["spk", "surat perintah kerja", "kontrak", "perjanjian", "purchase order"]
+    target_role: "contract"
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Pengeluaran belanja tanpa ikatan hukum yang sah dan mengikat."
+    recommendation: "Pastikan penerbitan SPK/Kontrak telah sah sebelum pekerjaan dimulai."
+
+  - ref_no: "KKA-PBJ-02"
+    title: "Berita Acara Serah Terima (BAST) / Surat Penerimaan"
+    criteria: "SOP Pembayaran Keuangan: Pembayaran atas pengadaan hanya dapat diproses setelah hasil pekerjaan diserahterimakan dan diperiksa sesuai spesifikasi."
+    keywords: ["bast", "berita acara serah terima", "serah terima", "surat jalan", "telah diterima dengan baik"]
+    target_role: "goods_receipt"
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Risiko pembayaran atas pekerjaan fiktif atau prestasi pekerjaan di bawah standar."
+    recommendation: "Wajibkan lampiran BAST yang ditandatangani panitia/pejabat penerima hasil pekerjaan."
+
+  - ref_no: "KKA-PBJ-03"
+    title: "Faktur Pajak (e-Faktur) Sah"
+    criteria: "UU PPN & UU HPP: Pengusaha Kena Pajak (PKP) wajib menerbitkan Faktur Pajak elektronik atas setiap penyerahan BKP/JKP."
+    keywords: ["faktur pajak", "e-faktur", "ppn", "pajak pertambahan nilai", "djp"]
+    target_role: "tax_document"
+    mandatory: true
+    risk_level: "high"
+    consequence: "Sanksi perpajakan dan PPN tidak dapat dikreditkan."
+    recommendation: "Verifikasi barcode e-faktur ke portal resmi DJP."
+
+  - ref_no: "KKA-PBJ-04"
+    title: "Klausul Denda Keterlambatan (Liquidated Damages)"
+    criteria: "Perpres PBJ Pasal 56: Dalam hal penyedia terlambat menyelesaikan pekerjaan, dikenakan denda 1/1000 (satu permil) per hari dari nilai bagian kontrak."
+    keywords: ["denda", "keterlambatan", "sanksi", "1/1000", "permil"]
+    target_role: "contract"
+    mandatory: true
+    risk_level: "medium"
+    consequence: "Hilangnya hak klaim ganti rugi jika penyedia mengalami keterlambatan penyelesaian."
+    recommendation: "Cantumkan secara eksplisit klausul denda keterlambatan satu permil per hari."
+
+  - ref_no: "KKA-PBJ-05"
+    title: "Bea Meterai atas Dokumen Perjanjian dan Kuitansi"
+    criteria: "UU Nomor 10 Tahun 2020: Dokumen yang menyatakan jumlah uang lebih dari Rp 5.000.000 wajib dilunasi Bea Meterai Rp 10.000."
+    keywords: ["meterai", "bea meterai", "e-meterai", "materai"]
+    mandatory: true
+    risk_level: "medium"
+    consequence: "Cacat keabsahan bukti perdata di pengadilan dan risiko denda pemeteraian kemudian."
+    recommendation: "Bubuhkan meterai tempel atau meterai elektronik sah."
+
+  - ref_no: "KKA-PBJ-06"
+    title: "Penyelesaian Perselisihan (Dispute Resolution)"
+    criteria: "Standar Kontrak Pengadaan: Kontrak wajib memuat mekanisme musyawarah dan penentuan pengadilan/arbitrase domisili hukum."
+    keywords: ["perselisihan", "sengketa", "pengadilan negeri", "arbitrase", "musyawarah"]
+    target_role: "contract"
+    mandatory: true
+    risk_level: "medium"
+    consequence: "Ketidakpastian hukum jika terjadi perselisihan atau sengketa wanprestasi."
+    recommendation: "Cantumkan klausul penyelesaian perselisihan secara jelas."

@@ -1,0 +1,39 @@
+name: "Audit Laporan Keuangan dan Pengeluaran Kas"
+description: "Kerangka audit untuk pengeluaran kas, bukti potong pajak, rekonsiliasi bank, dan otorisasi pengeluaran."
+items:
+  - ref_no: "KKA-FIN-01"
+    title: "Otorisasi Bertingkat (Dual Authorization / Approval)"
+    criteria: "SOP Pengeluaran Kas & Bank: Setiap pengeluaran kas/bank wajib diotorisasi oleh minimal 2 pejabat berwenang (misal Manager Keuangan dan Direktur)."
+    keywords: ["disetujui oleh", "otorisasi", "approval", "manager keuangan", "direktur", "mengetahui"]
+    mandatory: true
+    risk_level: "critical"
+    consequence: "Risiko fraud, pengeluaran tidak sah (unauthorized disbursement), atau penyalahgunaan wewenang."
+    recommendation: "Wajibkan verifikasi tanda tangan pejabat berwenang sebelum transfer dana dijalankan."
+
+  - ref_no: "KKA-FIN-02"
+    title: "Akurasi Perhitungan Pajak Penghasilan (PPh Pasal 21/22/23)"
+    criteria: "UU PPh & Peraturan Dirjen Pajak: Pemotongan PPh atas jasa atau pembelian barang wajib dihitung sesuai tarif yang berlaku."
+    keywords: ["pph", "pph 23", "pph 21", "pph 22", "bukti potong"]
+    mandatory: true
+    risk_level: "high"
+    consequence: "Kurang potong pajak dan risiko sanksi bunga administrasi perpajakan."
+    recommendation: "Pastikan pemotongan PPh dihitung secara akurat dan bukti potong diserahkan ke vendor."
+
+  - ref_no: "KKA-FIN-03"
+    title: "Rekonsiliasi Bank dan Rekening Koran"
+    criteria: "Standar Akuntansi Keuangan: Saldo pengeluaran kas di buku besar wajib cocok dengan mutasi debet pada rekening koran bank."
+    keywords: ["rekening koran", "bank statement", "rekonsiliasi bank", "mutasi debet", "bukti transfer"]
+    target_role: "payment_proof"
+    mandatory: true
+    risk_level: "high"
+    consequence: "Ketidakcocokan pencatatan kas dan potensi kebocoran dana."
+    recommendation: "Lakukan rekonsiliasi bank bulanan secara rutin."
+
+  - ref_no: "KKA-FIN-04"
+    title: "Uji Pisah Batas (Cut-Off Test)"
+    criteria: "Standar Akuntansi: Transaksi wajib dicatat pada periode akuntansi terjadinya transaksi (accrual basis)."
+    keywords: ["tanggal", "periode", "cut-off", "bulan", "tahun buku"]
+    mandatory: true
+    risk_level: "medium"
+    consequence: "Distorsi laporan laba rugi dan neraca antar periode."
+    recommendation: "Pastikan invoice dan beban dicatat sesuai periode penyerahan hak."

@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skill-audit"
+version = "0.1.0"
+description = "Auditing engine & AI agent skill for comprehensive document and audit dossier verification"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Skill-Audit Contributors" }
+]
+keywords = [
+    "audit",
+    "document-audit",
+    "audit-dossier",
+    "compliance",
+    "cross-check",
+    "3-way-matching",
+    "reconciliation",
+    "agent-skill",
+    "antigravity",
+    "claude-code",
+    "financial-audit",
+    "procurement-audit"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Legal Industry",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Accounting",
+]
+dependencies = [
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+pdf = [
+    "pypdf>=3.0.0",
+]
+excel = [
+    "openpyxl>=3.0.0",
+]
+docx = [
+    "python-docx>=1.0.0",
+]
+all = [
+    "pypdf>=3.0.0",
+    "openpyxl>=3.0.0",
+    "python-docx>=1.0.0",
+]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+skillaudit = "skill_audit.cli:cli"
+audit-skill = "skill_audit.cli:cli"
+sa-audit = "skill_audit.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["skill_audit*", "skills*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

@@ -1,0 +1,35 @@
+INVOICE / TAGIHAN PEMBAYARAN
+CV MITRA TEKNOLOGI
+Jl. Industri Raya No. 45, Jakarta Barat
+NPWP: 02.456.789.1-012.000
+
+Nomor Invoice : INV-2024-0889
+Tanggal       : 20 September 2024
+Dasar Perintah: SPK No: 042/SPK-TI/IX/2024
+
+Kepada Yth:
+Bagian Keuangan PT Nusantara Jaya
+Gedung Menara Mulia Lt. 12, Jakarta
+
+RINCIAN TAGIHAN:
+No.  Deskripsi Barang / Jasa          Qty   Harga Satuan     Total
+1.   Server Rack Enterprise 2U        5     Rp 9.000.000     Rp 45.000.000
+
+Subtotal DPP (Dasar Pengenaan Pajak) : Rp 45.000.000
+PPN 11%                              : Rp 5.500.000
+Total Tagihan                        : Rp 50.500.000
+
+Terbilang: Lima Puluh Juta Lima Ratus Ribu Rupiah
+
+Pembayaran mohon ditransfer ke:
+Bank Mandiri Cabang Sudirman
+No Rekening: 123-00-9876543-1
+Atas Nama: CV Mitra Teknologi
+
+Hormat Kami,
+CV Mitra Teknologi
+
+[Meterai Tempel Rp 10.000]
+(Tanda Tangan & Cap)
+Kevin Santoso, S.Kom
+Direktur Utama

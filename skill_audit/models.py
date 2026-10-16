@@ -1,0 +1,479 @@
+"""Core data models for Skill-Audit.
+
+Defines the data structures flowing through the audit pipeline:
+  Source Documents / Dossiers -> Extracted Chunks -> Verification & Reconciliation ->
+  AuditPack (5C Findings, Working Papers, Reconciliations, Metrics, Action Plan)
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+class RiskLevel(str, Enum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFORMATIONAL = "informational"
+
+    @property
+    def score_weight(self) -> int:
+        weights = {
+            "critical": 25,
+            "high": 15,
+            "medium": 7,
+            "low": 2,
+            "informational": 0,
+        }
+        return weights.get(self.value, 0)
+
+
+class AuditDomain(str, Enum):
+    PROCUREMENT = "procurement"
+    FINANCIAL = "financial"
+    LEGAL_CONTRACT = "legal_contract"
+    COMPLIANCE = "compliance"
+    IT_SECURITY = "it_security"
+    INTERNAL_CONTROL = "internal_control"
+    GENERAL = "general"
+
+
+class DocType(str, Enum):
+    PDF = "pdf"
+    EXCEL = "excel"
+    CSV = "csv"
+    DOCX = "docx"
+    TEXT = "text"
+    DOSSIER = "dossier"
+
+
+class AuditStatus(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+    WARNING = "warning"
+    INCONCLUSIVE = "inconclusive"
+
+
+def slugify(text: str) -> str:
+    """Convert arbitrary title into safe filesystem & URL slug."""
+    text = text.lower().strip()
+    text = re.sub(r"[^\w\s-]", "", text)
+    text = re.sub(r"[\s_-]+", "-", text)
+    return text.strip("-") or "audit-pack"
+
+
+# ======================================================================
+# Evidence & Grounding Models
+# ======================================================================
+
+
+@dataclass(frozen=True)
+class EvidenceCitation:
+    """Verbatim quote from a source document proving an audit finding or paper."""
+
+    document: str
+    locator: str  # e.g., 'Page 4', 'Row 15', 'Pasal 3.2'
+    excerpt: str  # verbatim text quote
+    char_offset: int | None = None
+    confidence: float = 1.0
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "document": self.document,
+            "locator": self.locator,
+            "excerpt": self.excerpt,
+        }
+        if self.char_offset is not None:
+            d["char_offset"] = self.char_offset
+        if self.confidence < 1.0:
+            d["confidence"] = round(self.confidence, 2)
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EvidenceCitation:
+        return cls(
+            document=str(data.get("document", "")),
+            locator=str(data.get("locator", "")),
+            excerpt=str(data.get("excerpt", "")),
+            char_offset=data.get("char_offset"),
+            confidence=float(data.get("confidence", 1.0)),
+        )
+
+    @property
+    def label(self) -> str:
+        return f"[{self.document} · {self.locator}]"
+
+
+@dataclass
+class KnowledgeChunk:
+    """Atomic content chunk extracted from an audit document."""
+
+    content: str
+    document_name: str = ""
+    section: str = ""
+    locator: str = ""
+    chunk_index: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "content": self.content,
+            "document_name": self.document_name,
+            "section": self.section,
+            "locator": self.locator,
+            "chunk_index": self.chunk_index,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> KnowledgeChunk:
+        return cls(
+            content=str(data.get("content", "")),
+            document_name=str(data.get("document_name", "")),
+            section=str(data.get("section", "")),
+            locator=str(data.get("locator", "")),
+            chunk_index=int(data.get("chunk_index", 0)),
+            metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass
+class Section:
+    """Coherent structural unit (e.g. Chapter, Sheet, Clause, Page)."""
+
+    id: str
+    title: str
+    locator: str
+    content: str = ""
+    chunks: list[KnowledgeChunk] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+# ======================================================================
+# Findings & Audit Records (5C Standard)
+# ======================================================================
+
+
+@dataclass
+class Finding5C:
+    """Standard 5C Audit Finding structure (Condition, Criteria, Cause, Consequence, Correction)."""
+
+    id: str
+    title: str
+    risk_level: RiskLevel
+    category: str
+    condition: str
+    criteria: str
+    cause: str
+    consequence: str
+    recommendation: str
+    evidence: list[EvidenceCitation] = field(default_factory=list)
+    management_response: str = ""
+    remediation_deadline_days: int = 30
+    tags: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "risk_level": self.risk_level.value,
+            "category": self.category,
+            "condition": self.condition,
+            "criteria": self.criteria,
+            "cause": self.cause,
+            "consequence": self.consequence,
+            "recommendation": self.recommendation,
+            "evidence": [e.to_dict() for e in self.evidence],
+            "management_response": self.management_response,
+            "remediation_deadline_days": self.remediation_deadline_days,
+            "tags": self.tags,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Finding5C:
+        return cls(
+            id=str(data.get("id", "")),
+            title=str(data.get("title", "")),
+            risk_level=RiskLevel(data.get("risk_level", "medium")),
+            category=str(data.get("category", "General")),
+            condition=str(data.get("condition", "")),
+            criteria=str(data.get("criteria", "")),
+            cause=str(data.get("cause", "")),
+            consequence=str(data.get("consequence", "")),
+            recommendation=str(data.get("recommendation", "")),
+            evidence=[EvidenceCitation.from_dict(e) for e in data.get("evidence", [])],
+            management_response=str(data.get("management_response", "")),
+            remediation_deadline_days=int(data.get("remediation_deadline_days", 30)),
+            tags=list(data.get("tags", [])),
+        )
+
+
+@dataclass
+class WorkingPaperRow:
+    """Kertas Kerja Audit (KKA) / Audit Working Paper entry."""
+
+    ref_no: str
+    procedure: str
+    document_ref: str
+    test_performed: str
+    result: AuditStatus
+    notes: str
+    evidence: list[EvidenceCitation] = field(default_factory=list)
+    finding_ref: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "ref_no": self.ref_no,
+            "procedure": self.procedure,
+            "document_ref": self.document_ref,
+            "test_performed": self.test_performed,
+            "result": self.result.value,
+            "notes": self.notes,
+            "evidence": [e.to_dict() for e in self.evidence],
+        }
+        if self.finding_ref:
+            d["finding_ref"] = self.finding_ref
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WorkingPaperRow:
+        return cls(
+            ref_no=str(data.get("ref_no", "")),
+            procedure=str(data.get("procedure", "")),
+            document_ref=str(data.get("document_ref", "")),
+            test_performed=str(data.get("test_performed", "")),
+            result=AuditStatus(data.get("result", "pass")),
+            notes=str(data.get("notes", "")),
+            evidence=[EvidenceCitation.from_dict(e) for e in data.get("evidence", [])],
+            finding_ref=data.get("finding_ref"),
+        )
+
+
+@dataclass
+class ReconciliationItem:
+    """Cross-document reconciliation item (e.g. 3-Way Matching)."""
+
+    item_description: str
+    doc_values: dict[str, Any]  # e.g., {'Contract': 50000000, 'Invoice': 55000000}
+    status: AuditStatus
+    discrepancy_amount: float | None = None
+    discrepancy_details: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "item_description": self.item_description,
+            "doc_values": self.doc_values,
+            "status": self.status.value,
+            "discrepancy_details": self.discrepancy_details,
+        }
+        if self.discrepancy_amount is not None:
+            d["discrepancy_amount"] = self.discrepancy_amount
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ReconciliationItem:
+        return cls(
+            item_description=str(data.get("item_description", "")),
+            doc_values=dict(data.get("doc_values", {})),
+            status=AuditStatus(data.get("status", "pass")),
+            discrepancy_amount=data.get("discrepancy_amount"),
+            discrepancy_details=str(data.get("discrepancy_details", "")),
+        )
+
+
+# ======================================================================
+# Ingested Document Models
+# ======================================================================
+
+
+@dataclass
+class AuditDocument:
+    """Representation of an ingested document or audit evidence file."""
+
+    name: str
+    path: str
+    doc_type: DocType
+    role_in_dossier: str = "general"
+    total_pages_or_sheets: int = 1
+    content: str = ""
+    entities: dict[str, Any] = field(default_factory=dict)
+    chunks: list[KnowledgeChunk] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "path": self.path,
+            "doc_type": self.doc_type.value,
+            "role_in_dossier": self.role_in_dossier,
+            "total_pages_or_sheets": self.total_pages_or_sheets,
+            "entities": self.entities,
+            "chunks_count": len(self.chunks),
+            "content_length": len(self.content),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AuditDocument:
+        return cls(
+            name=str(data.get("name", "")),
+            path=str(data.get("path", "")),
+            doc_type=DocType(data.get("doc_type", "text")),
+            role_in_dossier=str(data.get("role_in_dossier", "general")),
+            total_pages_or_sheets=int(data.get("total_pages_or_sheets", 1)),
+            content=str(data.get("content", "")),
+            entities=dict(data.get("entities", {})),
+            chunks=[KnowledgeChunk.from_dict(c) for c in data.get("chunks", [])],
+        )
+
+
+# ======================================================================
+# Metrics & Complete Audit Pack
+# ======================================================================
+
+
+@dataclass
+class AuditMetric:
+    """Quantitative scoring & summary metrics of the audit."""
+
+    total_documents: int = 0
+    total_findings: int = 0
+    findings_by_risk: dict[str, int] = field(default_factory=dict)
+    compliance_score: float = 100.0  # Percentage (0 - 100)
+    arithmetic_accuracy: float = 100.0  # Percentage (0 - 100)
+    evidence_grounding_rate: float = 100.0  # Percentage of findings with verified source quotes
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "total_documents": self.total_documents,
+            "total_findings": self.total_findings,
+            "findings_by_risk": self.findings_by_risk,
+            "compliance_score": round(self.compliance_score, 1),
+            "arithmetic_accuracy": round(self.arithmetic_accuracy, 1),
+            "evidence_grounding_rate": round(self.evidence_grounding_rate, 1),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AuditMetric:
+        return cls(
+            total_documents=int(data.get("total_documents", 0)),
+            total_findings=int(data.get("total_findings", 0)),
+            findings_by_risk=dict(data.get("findings_by_risk", {})),
+            compliance_score=float(data.get("compliance_score", 100.0)),
+            arithmetic_accuracy=float(data.get("arithmetic_accuracy", 100.0)),
+            evidence_grounding_rate=float(data.get("evidence_grounding_rate", 100.0)),
+        )
+
+
+@dataclass
+class AuditPack:
+    """The master deliverable: complete, standalone audit pack.
+
+    Contains all documents, verified 5C findings, working papers (KKA),
+    reconciliation matrices, metrics, and actionable remediation steps.
+    """
+
+    title: str
+    audit_ref: str
+    lead_auditor: str = "Skill-Audit System"
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    domain: AuditDomain = AuditDomain.GENERAL
+    executive_summary: str = ""
+    scope: str = ""
+    methodology: str = "Standard 5C Audit Methodology with 3-Way Reconciliation & Deterministic Evidence Grounding"
+    documents: list[AuditDocument] = field(default_factory=list)
+    findings: list[Finding5C] = field(default_factory=list)
+    working_papers: list[WorkingPaperRow] = field(default_factory=list)
+    reconciliations: list[ReconciliationItem] = field(default_factory=list)
+    metrics: AuditMetric = field(default_factory=AuditMetric)
+    action_plan: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "audit_ref": self.audit_ref,
+            "lead_auditor": self.lead_auditor,
+            "created_at": self.created_at,
+            "domain": self.domain.value,
+            "executive_summary": self.executive_summary,
+            "scope": self.scope,
+            "methodology": self.methodology,
+            "documents": [doc.to_dict() for doc in self.documents],
+            "findings": [f.to_dict() for f in self.findings],
+            "working_papers": [w.to_dict() for w in self.working_papers],
+            "reconciliations": [r.to_dict() for r in self.reconciliations],
+            "metrics": self.metrics.to_dict(),
+            "action_plan": self.action_plan,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AuditPack:
+        pack = cls(
+            title=str(data.get("title", "Untitled Audit")),
+            audit_ref=str(data.get("audit_ref", "AUD-001")),
+            lead_auditor=str(data.get("lead_auditor", "Skill-Audit")),
+            created_at=str(data.get("created_at", datetime.now(timezone.utc).isoformat())),
+            domain=AuditDomain(data.get("domain", "general")),
+            executive_summary=str(data.get("executive_summary", "")),
+            scope=str(data.get("scope", "")),
+            methodology=str(data.get("methodology", "")),
+            documents=[AuditDocument.from_dict(d) for d in data.get("documents", [])],
+            findings=[Finding5C.from_dict(f) for f in data.get("findings", [])],
+            working_papers=[WorkingPaperRow.from_dict(w) for w in data.get("working_papers", [])],
+            reconciliations=[ReconciliationItem.from_dict(r) for r in data.get("reconciliations", [])],
+            metrics=AuditMetric.from_dict(data.get("metrics", {})),
+            action_plan=list(data.get("action_plan", [])),
+            metadata=dict(data.get("metadata", {})),
+        )
+        return pack
+
+    def to_yaml(self, path: str | Path | None = None) -> str:
+        """Serialize pack to YAML string, optionally writing to file."""
+        dumped = yaml.safe_dump(self.to_dict(), sort_keys=False, allow_unicode=True)
+        if path:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(dumped, encoding="utf-8")
+        return dumped
+
+    @classmethod
+    def from_yaml(cls, source: str | Path) -> AuditPack:
+        """Load AuditPack from YAML file or raw string."""
+        if isinstance(source, Path) or (isinstance(source, str) and "\n" not in source and Path(source).exists()):
+            content = Path(source).read_text(encoding="utf-8")
+        else:
+            content = source
+        data = yaml.safe_load(content)
+        if not isinstance(data, dict):
+            raise ValueError("YAML content does not represent a valid AuditPack dictionary.")
+        return cls.from_dict(data)
+
+    def to_json(self, path: str | Path | None = None, indent: int = 2) -> str:
+        """Serialize pack to JSON string, optionally writing to file."""
+        dumped = json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+        if path:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(dumped, encoding="utf-8")
+        return dumped
+
+    @classmethod
+    def from_json(cls, source: str | Path) -> AuditPack:
+        """Load AuditPack from JSON file or raw string."""
+        if isinstance(source, Path) or (isinstance(source, str) and "\n" not in source and Path(source).exists()):
+            content = Path(source).read_text(encoding="utf-8")
+        else:
+            content = source
+        data = json.loads(content)
+        if not isinstance(data, dict):
+            raise ValueError("JSON content does not represent a valid AuditPack dictionary.")
+        return cls.from_dict(data)

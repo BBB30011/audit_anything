@@ -1,0 +1,5 @@
+No,Tanggal,No_Voucher,Keterangan,Penerima,Nilai_Transaksi,Status_Approval
+1,2024-09-02,VCH-09-001,Biaya ATK dan Operasional Kantor,Toko Buku Pintar,Rp 4.500.000,Approved
+2,2024-09-12,VCH-09-002,Uang Muka Sewa Kendaraan Dinas,Rental Mobil Prima,Rp 12.000.000,Approved
+3,2024-09-28,VCH-09-003,Pembayaran Pengadaan Server Rack,CV Mitra Teknologi,Rp 50.500.000,Approved
+4,2024-09-30,VCH-09-004,Biaya Langganan Cloud Server AWS,Amazon Web Services,Rp 18.250.000,Approved
