@@ -973,3 +973,9 @@ class AuditPack:
         if not isinstance(data, dict):
             raise ValueError("JSON content does not represent a valid AuditPack dictionary.")
         return cls.from_dict(data)
+
+    def get_saaipi_report(self) -> Any:
+        """Evaluate and return compliance report against PER-01/AAIPI/DPN/2021 SAAIPI."""
+        from skill_audit.knowledge.saaipi_standards import evaluate_saaipi_compliance
+        return evaluate_saaipi_compliance(self)
+

@@ -195,37 +195,48 @@ class ObligationEngine:
 
         # 8. Dynamic Domain-Specific Statutory Obligations
         terrain_prog = get_terrain_profile(domain)
-        if terrain_prog:
-            for spec in terrain_prog.mandatory_obligations:
-                spec_code = spec.get("code", f"OBL-SPEC-{tested_count+1}")
-                spec_cat = spec.get("category", "Kepatuhan Spesifik Medan")
-                spec_desc = spec.get("description", "")
-                spec_stat = spec.get("statutory", "")
+        specs_to_test = list(terrain_prog.mandatory_obligations) if terrain_prog else []
 
-                # Check if any finding relates to this specific obligation
-                matched_viol = any(
-                    spec_cat.lower() in f.category.lower()
-                    or any(tok in f.title.lower() for tok in spec_desc.lower().split() if len(tok) > 4)
-                    for f in findings
+        # If domain is not government, but documents contain SAAIPI/APIP keywords, also test SAAIPI obligations
+        has_saaipi_signal = any("saaipi" in d.content.lower() or "apip" in d.content.lower() for d in documents)
+        if has_saaipi_signal and (not terrain_prog or terrain_prog.domain != AuditDomain.GOVERNMENT):
+            gov_prog = get_terrain_profile(AuditDomain.GOVERNMENT)
+            if gov_prog:
+                for spec in gov_prog.mandatory_obligations:
+                    if spec.get("code", "").startswith("OBL-SAAIPI"):
+                        specs_to_test.append(spec)
+
+        for spec in specs_to_test:
+            spec_code = spec.get("code", f"OBL-SPEC-{tested_count+1}")
+            spec_cat = spec.get("category", "Kepatuhan Spesifik Medan")
+            spec_desc = spec.get("description", "")
+            spec_stat = spec.get("statutory", "")
+
+            # Check if any finding relates to this specific obligation
+            matched_viol = any(
+                spec_cat.lower() in f.category.lower()
+                or any(tok in f.title.lower() for tok in spec_desc.lower().split() if len(tok) > 4)
+                for f in findings
+            )
+
+            if matched_viol:
+                obl_status = "violated"
+                notes = f"Terindikasi pelanggaran pada pengujian regulasi {spec_stat}."
+            else:
+                obl_status = "satisfied"
+                notes = f"Pengujian kepatuhan {spec_desc} telah diverifikasi."
+
+            obligations.append(
+                AuditObligation(
+                    id=spec_code,
+                    title=f"{spec_cat}: {spec_desc}",
+                    standard_ref=spec_stat,
+                    status=obl_status,
+                    coverage_notes=notes,
                 )
-
-                if matched_viol:
-                    obl_status = "violated"
-                    notes = f"Terindikasi pelanggaran pada pengujian regulasi {spec_stat}."
-                else:
-                    obl_status = "satisfied"
-                    notes = f"Pengujian kepatuhan {spec_desc} telah diverifikasi."
-
-                obligations.append(
-                    AuditObligation(
-                        id=spec_code,
-                        title=f"{spec_cat}: {spec_desc}",
-                        standard_ref=spec_stat,
-                        status=obl_status,
-                        coverage_notes=notes,
-                    )
-                )
-                tested_count += 1
+            )
+            tested_count += 1
 
         coverage_percentage = round((tested_count / max(1, len(obligations))) * 100.0, 1)
         return obligations, coverage_percentage
+

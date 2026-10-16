@@ -101,7 +101,7 @@ class UnknownsEngine:
                 )
                 idx += 1
 
-        if domain_str == "government" or any(k in full_corpus for k in ["apbn", "apbd", "dpa", "sp2d"]):
+        if domain_str == "government" or any(k in full_corpus for k in ["apbn", "apbd", "dpa", "sp2d", "saaipi", "apip", "inspektorat"]):
             has_sp2d = any("sp2d" in d.name.lower() or "spm" in d.name.lower() for d in documents)
             if not has_sp2d:
                 unknowns.append(
@@ -112,6 +112,41 @@ class UnknownsEngine:
                         status=UnknownStatus.OPEN,
                         impact="Ketidakpastian beban kas daerah/negara dan potensi temuan kepatuhan BPK atas belanja tanpa SP2D.",
                         evidence_required="Lembar Asli SP2D bertandatangan Kuasa BUD dan SPM terverifikasi.",
+                    )
+                )
+                idx += 1
+
+            # SAAIPI APIP Mandate & Surat Tugas Check
+            has_surat_tugas = any(
+                k in full_corpus for k in ["surat tugas", "piagam audit", "internal audit charter"]
+            ) or any(
+                any(k in n for k in ["surat tugas", "st", "piagam audit", "internal audit charter"])
+                for n in doc_names
+            )
+            if not has_surat_tugas and any(k in full_corpus for k in ["apip", "inspektorat", "bpkp", "itjen", "saaipi"]):
+                unknowns.append(
+                    UnknownItem(
+                        id=f"UNK-{idx:02d}",
+                        question="Apakah penugasan pengawasan intern ini telah memiliki dasar Surat Tugas (ST) resmi pimpinan APIP dan Piagam Audit Intern sesuai Standar SAAIPI 1000 & 2240?",
+                        category="SAAIPI APIP Mandate",
+                        status=UnknownStatus.OPEN,
+                        impact="Ketiadaan legalitas formal mandat pengawasan intern berisiko menyebabkan penolakan akses data oleh auditi dan cacat hukum administrasi.",
+                        evidence_required="Surat Tugas (ST) resmi yang ditandatangani Pimpinan APIP (Inspektur/Kepala BPKP) dan Dokumen Piagam Audit.",
+                    )
+                )
+                idx += 1
+
+            # SAAIPI TLRHP Monitoring Check
+            has_tlrhp = any("tlrhp" in n or "tindak lanjut" in n or "action plan" in n for n in doc_names)
+            if not has_tlrhp and any(k in full_corpus for k in ["apip", "inspektorat", "bpkp", "saaipi", "lha"]):
+                unknowns.append(
+                    UnknownItem(
+                        id=f"UNK-{idx:02d}",
+                        question="Apakah rekomendasi hasil pengawasan telah memperoleh tanggapan resmi auditi dan dimutakhirkan dalam matriks TLRHP sesuai SAAIPI 2430 & 2500?",
+                        category="SAAIPI TLRHP Compliance",
+                        status=UnknownStatus.OPEN,
+                        impact="Rekomendasi perbaikan tata kelola dan pemulihan potensi kerugian daerah/negara berisiko kedaluwarsa tanpa tindak lanjut konkret.",
+                        evidence_required="Lembar Tanggapan Resmi Auditi dan Matriks Pemantauan Tindak Lanjut Hasil Pengawasan (TLRHP) 4 Status.",
                     )
                 )
                 idx += 1

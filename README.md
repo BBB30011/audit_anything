@@ -2,8 +2,8 @@
 
 > **Enterprise Document & Audit Dossier Auditing System with Zero-Hallucination Evidence Grounding, 5-Pillar Knowledge Base, REA Architecture Integration, and Human-AI Collaborative Triage.**
 
-[![CI Test Suite](https://img.shields.io/badge/pytest-50%20passed-brightgreen.svg)]()
-[![Standards](https://img.shields.io/badge/standards-COSO%20%7C%20ISO%2031000%20%7C%20ISO%2037001%20%7C%20Benford%20Forensics-blue.svg)]()
+[![CI Test Suite](https://img.shields.io/badge/pytest-55%20passed-brightgreen.svg)]()
+[![Standards](https://img.shields.io/badge/standards-SAAIPI%202021%20%7C%20COSO%20%7C%20ISO%2031000%20%7C%20Benford-blue.svg)]()
 [![Offline](https://img.shields.io/badge/offline-100%25%20standalone-success.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Antigravity%20%7C%20Claude%20Code%20%7C%20Cursor%20%7C%20CLI-purple.svg)]()
 
@@ -17,6 +17,7 @@ Dibangun dengan memadukan tiga pilar teknologi mutakhir:
 1. **[Skill-Anything](https://github.com/SYuan03/Skill-Anything)**: Ekstraksi dan pengemasan keahlian audit menjadi *agent skill* modular yang portabel untuk Google Antigravity, Claude Code, dan Cursor.
 2. **[REA (Reverse Engineering Assistant)](https://github.com/morluto/rea)**: Metodologi forensik tingkat tinggi yang menerapkan **Ledger of Unknowns & Inquiries**, **Cryptographic Evidence Bundles (SHA-256)**, isolasi konten (*untrusted content provenance*), dan **Reconstruction Obligation Ledger**.
 3. **Forensik Digital Benford's Law & Pengenal Medan Otomatis (*Multi-Terrain Engine*)**: Analisis matematis distribusi digit (Nigrini 2012 / ISA 240) dan klasifikasi otomatis 12+ medan audit (Pengadaan, Keuangan, Sektor Publik/Pemerintah, Rumah Sakit/Kesehatan, SDM/Payroll, Supply Chain, Anti-Fraud, ITGC/Cyber, Pajak/Kepabeanan, Perbankan/Fintech, ESG/Keberlanjutan).
+4. **Standar Audit Intern Pemerintah Indonesia (SAAIPI - PER-01/AAIPI/DPN/2021)**: Integrasi penuh kerangka kerja pengawasan APIP (BPKP, Itjen K/L, Inspektorat Daerah): 6 Prinsip Etika APIP, Standar Atribut (1000), Standar Pelaksanaan (2000), struktur temuan 5C, KKA berjenjang, dan pemantauan tindak lanjut rekomendasi (TLRHP 4 status).
 
 Sistem dapat dijalankan **100% offline** menggunakan mesin analisis aturan deterministik (*heuristic rule engines*) tanpa memerlukan API key eksternal, atau dengan LLM lokal/cloud opsional untuk sintesis narasi tingkat lanjut.
 
@@ -66,7 +67,7 @@ Sistem secara cerdas mendeteksi karakteristik berkas audit dan mengaktifkan pros
 |---|---|---|
 | **`PROCUREMENT`** | Perpres 16/2018, Pedoman LKPP | Rekonsiliasi 3-Way Match (Kontrak vs BAST vs Invoice), kartel vendor, tender splitting. |
 | **`FINANCIAL`** | SAK / PSAK / IFRS, SA 200-700 | Rekonsiliasi Bank bulanan, Subledger to GL, uji pisah batas (*cut-off*), jurnal manual. |
-| **`GOVERNMENT`** | PP 71/2010 (SAP), UU 17/2003 Keuangan Negara | Pagu DPA/RKA, verifikasi SPP/SPM/SP2D, belanja modal vs Berita Acara Rekonsiliasi Aset BMD. |
+| **`GOVERNMENT`** | **PER-01/AAIPI/DPN/2021 (SAAIPI)**, PP 60/2008 (SPIP), PP 71/2010 (SAP), UU 17/2003 | Standar Atribut (1000) & Pelaksanaan (2000), Kode Etik APIP, SPP/SPM/SP2D, KKA berjenjang, TLRHP 4 status. |
 | **`HEALTHCARE`** | UU Kesehatan 17/2023, Permenkes 24/2022 | Anti-fraud klaim BPJS, upcoding diagnosis ICD-10, rekonsiliasi obat narkotika/psikotropika, informed consent. |
 | **`HR_PAYROLL`** | UU 6/2023 Cipta Kerja, PP 35/2021, PP 36/2021 | Pencegahan pegawai fiktif (*ghost employees*), batas lembur maksimal 4 jam/hari, iuran BPJS TK & PPh 21 TER. |
 | **`SUPPLY_CHAIN`** | PSAK 14 Persediaan, Standar WMS | Stock Opname fisik vs catatan sistem (toleransi selisih $\le 2\%$), *dead-stock* $>180$ hari, otorisasi *write-off*. |
@@ -233,7 +234,16 @@ skillaudit resolve-unknown output/audit_2024/*_pack.yaml \
 skillaudit obligations output/audit_2024/*_pack.yaml
 ```
 
-### 6. Ekspor & Verifikasi Integritas Berkas Bukti (Evidence Bundle)
+### 6. Evaluasi Kepatuhan SAAIPI (PER-01/AAIPI/DPN/2021)
+```bash
+# Uji kepatuhan terhadap 6 Prinsip Kode Etik APIP, Standar Atribut (1000), & Pelaksanaan (2000)
+skillaudit saaipi output/audit_2024/*_pack.yaml
+
+# Format JSON untuk automasi CI/CD
+skillaudit saaipi output/audit_2024/*_pack.yaml --json
+```
+
+### 7. Ekspor & Verifikasi Integritas Berkas Bukti (Evidence Bundle)
 ```bash
 # Ekspor bukti ke arsip forensik ZIP
 skillaudit bundle output/audit_2024/*_pack.yaml -o evidence.zip

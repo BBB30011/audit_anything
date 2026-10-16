@@ -21,10 +21,13 @@ The engine automatically classifies and adapts audit procedures across 12+ opera
    - SAK / PSAK / IFRS compliance and cut-off testing.
    - General Ledger to Subledger reconciliations (AR/AP/Inventory).
    - Monthly bank statement reconciliation, unrecorded disbursements, and lapping/kiting detection.
-3. **Public Sector & Government (`GOVERNMENT`)**:
-   - Standar Akuntansi Pemerintahan (SAP / PP 71/2010), UU Keuangan Negara No. 17/2003.
-   - DPA/RKA budget cap monitoring and SiLPA variance analysis.
-   - Verification of SPP, SPM, SP2D, and BAP (Berita Acara Pembayaran).
+3. **Public Sector, APIP & Government (`GOVERNMENT`)**:
+   - **PER-01/AAIPI/DPN/2021**: Standar Audit Intern Pemerintah Indonesia (SAAIPI) issued by AAIPI.
+   - PP No. 60/2008 (SPIP), Standar Akuntansi Pemerintahan (SAP / PP 71/2010), UU Keuangan Negara No. 17/2003, UU No. 1/2004.
+   - APIP Code of Ethics: Integrity, Objectivity, Confidentiality, Competence, Accountability, Professional Behavior.
+   - Standar Atribut (1000 Internal Audit Charter, 1100 Conflict of Interest Declaration, 1200 Due Care, 1300 QAIP).
+   - Standar Pelaksanaan (2000 Risk-Based PKPT, 2200 Official Audit Assignment Letter, 2300 Multi-Tier KKA, 2400 5C LHA & Auditee Response, 2500 TLRHP Monitoring).
+   - DPA/RKA budget cap monitoring, SiLPA variance analysis, SPP/SPM/SP2D treasury trail, and BMD/BMN reconciliation.
 4. **Healthcare & Hospital Billing (`HEALTHCARE`)**:
    - BPJS Kesehatan anti-fraud guidelines, Permenkes No. 24/2022 (Rekam Medis).
    - ICD-10 and INA-CBG upcoding detection, double billing, phantom billing.
@@ -100,7 +103,39 @@ flowchart LR
 
 ---
 
-## 5. CLI Execution Reference
+## 5. Public Sector & APIP Audit Framework (PER-01/AAIPI/DPN/2021 SAAIPI)
+
+Audits in the Indonesian public sector (APIP: BPKP, Itjen K/L, Inspektorat Daerah, SPI BLU) are strictly bound to **PER-01/AAIPI/DPN/2021**:
+
+1. **Prinsip Etika APIP**:
+   - **Integritas**: Kejujuran, keteguhan moral, dan keberanian menegakkan kebenaran.
+   - **Objektivitas**: Penilaian netral, bebas benturan kepentingan (*conflict of interest*), berbasis bukti nyata.
+   - **Kerahasiaan**: Melindungi informasi rahasia dinas, tidak membocorkan data negara.
+   - **Kompetensi**: Keahlian teknis (JFA/CIPA/CRMO), kepatuhan SAAIPI, dan kewajiban PPL/CPE.
+   - **Akuntabilitas**: Mempertanggungjawabkan seluruh simpulan dan memelihara jejak KKA.
+   - **Perilaku Profesional**: Mematuhi hukum, etika kedinasan, dan menjaga kehormatan korps auditor.
+
+2. **Standar Atribut (Seri 1000)**:
+   - `1000`: Mandat Pengawasan & Piagam Audit Intern (*Internal Audit Charter*) disetujui Pimpinan Instansi.
+   - `1100`: Independensi Organisasi & Deklarasi Bebas Benturan Kepentingan Individual.
+   - `1200`: Keahlian & Kecermatan Profesional (*Due Professional Care* & Skeptisisme Fraud).
+   - `1300`: Program Penjaminan dan Peningkatan Kualitas (*QAIP* & Telaah Sejawat AAIPI).
+
+3. **Standar Pelaksanaan (Seri 2000)**:
+   - `2000`: Pengelolaan Audit Intern berbasis Program Kerja Pengawasan Tahunan (PKPT) Berbasis Risiko.
+   - `2100`: Evaluasi Tata Kelola, Manajemen Risiko, dan Pengendalian Intern Pemerintah (SPIP PP 60/2008).
+   - `2200`: Perencanaan Penugasan, Surat Tugas Resmi (ST), dan Struktur Tim Hierarkis (PM, Dalnis, KT, AT).
+   - `2300`: Bukti Audit Memadai (Cukup, Kompeten, Relevan, Andal) dan Kertas Kerja Audit (KKA) Berjenjang.
+   - `2400`: Pelaporan LHA Berbasis 5C (Condition, Criteria, Cause, Consequence, Recommendation) & Tanggapan Resmi Auditi.
+   - `2500`: Pemantauan Tindak Lanjut Rekomendasi Hasil Pengawasan (TLRHP) 4 Status:
+     * *Status 1*: Sesuai Rekomendasi / Selesai
+     * *Status 2*: Belum Sesuai Rekomendasi / Dalam Proses
+     * *Status 3*: Belum Ditindaklanjuti
+     * *Status 4*: Tidak Dapat Ditindaklanjuti dengan Alasan Sah
+
+---
+
+## 6. CLI Execution Reference
 
 ```bash
 # 1. Universal Audit Across Any Domain
@@ -109,28 +144,33 @@ skillaudit audit path/to/dossier/ --output output/ --format all
 # 2. Inspect Detected Audit Terrain
 skillaudit terrain path/to/dossier/
 
-# 3. Run Forensic Benford's Law Digital Analysis
+# 3. Evaluate Compliance with SAAIPI PER-01/AAIPI/DPN/2021
+skillaudit saaipi path/to/dossier_or_pack.yaml
+skillaudit saaipi output/audit_pack.yaml --json
+
+# 4. Run Forensic Benford's Law Digital Analysis
 skillaudit benford output/audit_pack.yaml
 
-# 4. List All Universal Domain Profiles & Standards
+# 5. List All Universal Domain Profiles & Standards
 skillaudit profiles
 
-# 5. Review Unknowns & Statutory Obligations
+# 6. Review Unknowns & Statutory Obligations
 skillaudit unknowns output/audit_pack.yaml
 skillaudit obligations output/audit_pack.yaml
 
-# 6. Verify Cryptographic Evidence Integrity (Tamper Detection)
+# 7. Verify Cryptographic Evidence Integrity (Tamper Detection)
 skillaudit verify-bundle output/audit_pack.yaml
 
-# 7. Interactive Human-AI Triage & Formal Sign-Off
+# 8. Interactive Human-AI Triage & Formal Sign-Off
 skillaudit triage output/audit_pack.yaml
 skillaudit signoff output/audit_pack.yaml --name "Lead Auditor, CPA" --opinion "WTP"
 ```
 
 ---
 
-## 6. Zero-Hallucination Grounding Rule
+## 7. Zero-Hallucination Grounding Rule
 Every finding generated by this skill must include:
 - Verbatim quote (`quote_anchor`) from the audited source document.
 - Explicit page/sheet/line locator.
 - Complete 5C structure: **Condition**, **Criteria**, **Cause**, **Consequence**, and **Recommendation**.
+

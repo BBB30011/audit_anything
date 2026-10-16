@@ -28,6 +28,16 @@ from skill_audit.knowledge.risk_management import (
     calculate_risk_profile,
     generate_heatmap_matrix,
 )
+from skill_audit.knowledge.saaipi_standards import (
+    SAAIPI_ETHICS_REGISTRY,
+    SAAIPI_MANDATORY_OBLIGATIONS,
+    SAAIPI_STANDARDS_REGISTRY,
+    SAAIPIComplianceReport,
+    SAAIPIEthicsPrinciple,
+    SAAIPIStandardClause,
+    SAAIPIStandardEvaluation,
+    evaluate_saaipi_compliance,
+)
 from skill_audit.knowledge.technical_audit import (
     ITGC_DOMAINS,
     ITGCControlDomain,
@@ -54,4 +64,13 @@ __all__ = [
     "ITGC_DOMAINS",
     "compute_file_sha256",
     "verify_audit_trail_integrity",
+    "SAAIPI_ETHICS_REGISTRY",
+    "SAAIPI_STANDARDS_REGISTRY",
+    "SAAIPI_MANDATORY_OBLIGATIONS",
+    "SAAIPIEthicsPrinciple",
+    "SAAIPIStandardClause",
+    "SAAIPIStandardEvaluation",
+    "SAAIPIComplianceReport",
+    "evaluate_saaipi_compliance",
 ]
+

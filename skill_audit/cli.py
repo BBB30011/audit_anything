@@ -28,6 +28,7 @@ from skill_audit.exporters import (
 from skill_audit.analyzers.benford_analyzer import BenfordForensicAnalyzer
 from skill_audit.analyzers.terrain_detector import DomainTerrainDetector
 from skill_audit.knowledge.domain_profiles import DOMAIN_TERRAIN_PROFILES, list_all_terrains
+from skill_audit.knowledge.saaipi_standards import evaluate_saaipi_compliance
 from skill_audit.models import AuditDomain, AuditPack, HumanSignOff, RiskLevel, UnknownStatus
 from skill_audit.parsers import parse_path
 from skill_audit.triage import run_interactive_triage
@@ -712,9 +713,89 @@ def profiles_cmd() -> None:
     console.print(table)
 
 
+@cli.command("saaipi")
+@click.argument("target", type=click.Path(exists=True))
+@click.option("--json", "json_mode", is_flag=True, help="Output SAAIPI evaluation in JSON format.")
+def saaipi_cmd(target: str, json_mode: bool) -> None:
+    """Evaluate compliance with PER-01/AAIPI/DPN/2021 Standar Audit Intern Pemerintah Indonesia (SAAIPI)."""
+    p = Path(target)
+    if p.suffix in [".yaml", ".yml"]:
+        pack = AuditPack.from_yaml(p)
+    elif p.suffix == ".json":
+        pack = AuditPack.from_json(p)
+    else:
+        # Audit target with GOVERNMENT domain
+        engine = AuditEngine()
+        pack = engine.audit(p, domain=AuditDomain.GOVERNMENT)
+
+    report = evaluate_saaipi_compliance(pack)
+
+    if json_mode:
+        click.echo(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+        return
+
+    verdict_color = "green" if "MEMENUHI" in report.summary_verdict and "BELUM" not in report.summary_verdict else "yellow" if "SUBSTANSIAL" in report.summary_verdict else "red"
+    summary_text = (
+        f"[bold white]{report.standard_title}[/]\n"
+        f"Dasar Regulasi : [bold cyan]{report.legal_basis}[/]\n"
+        f"Auditi / Berkas: [white]{pack.title}[/] (`{pack.audit_ref}`)\n\n"
+        f"• Skor Kepatuhan SAAIPI  : [bold {verdict_color}]{report.overall_compliance_score:.1f}%[/]\n"
+        f"• Standar Atribut (1000) : [cyan]{report.attribute_standards_score:.1f}%[/]\n"
+        f"• Standar Pelaksanaan(2000): [cyan]{report.performance_standards_score:.1f}%[/]\n"
+        f"• Kepatuhan Kode Etik APIP: [green]{report.ethics_score:.1f}%[/]\n"
+        f"• Keterpenuhan Unsur 5C   : [bold {'green' if report.five_c_rigor_score >= 90 else 'yellow'}]{report.five_c_rigor_score:.1f}%[/]\n"
+        f"• Simpulan Dewan Penjamin: [{verdict_color}]{report.summary_verdict}[/]"
+    )
+    console.print(Panel(summary_text, title="🏛️ Evaluasi Kepatuhan SAAIPI (PER-01/AAIPI/DPN/2021)", border_style="cyan"))
+
+    # 1. Ethics Table
+    ethics_table = Table(title="1. Kode Etik Auditor Intern Pemerintah Indonesia (APIP)", border_style="blue")
+    ethics_table.add_column("Prinsip Etika", style="bold")
+    ethics_table.add_column("Status", justify="center")
+    ethics_table.add_column("Skor", justify="right")
+    ethics_table.add_column("Catatan Penilaian")
+
+    for name, data in report.ethics_evaluations.items():
+        st = data["status"]
+        st_color = "green" if st == "Terpenuhi" else "yellow" if "Perlu" in st else "red"
+        ethics_table.add_row(
+            name,
+            f"[{st_color}]{st}[/]",
+            f"{data['score']:.0f}%",
+            data["notes"],
+        )
+    console.print(ethics_table)
+
+    # 2. Standards Table (1000 - 2500)
+    std_table = Table(title="2. Evaluasi Standar Atribut & Standar Pelaksanaan SAAIPI", border_style="cyan")
+    std_table.add_column("Kode", style="bold magenta", width=14)
+    std_table.add_column("Seri", width=24)
+    std_table.add_column("Judul Standar", style="bold")
+    std_table.add_column("Status", justify="center", width=14)
+    std_table.add_column("Skor", justify="right", width=8)
+    std_table.add_column("Catatan Hasil Reviu")
+
+    for ev in report.evaluations:
+        status_label = (
+            "[bold green]SESUAI[/]" if ev.status == "compliant"
+            else "[bold yellow]SEBAGIAN[/]" if ev.status == "partial"
+            else "[bold red]TIDAK SESUAI[/]"
+        )
+        std_table.add_row(
+            ev.clause.code,
+            ev.clause.series,
+            ev.clause.title,
+            status_label,
+            f"{ev.score:.0f}%",
+            ev.notes,
+        )
+    console.print(std_table)
+
+
 # ======================================================================
 # Internal Helpers
 # ======================================================================
+
 
 
 def _render_summary_panel(pack: AuditPack) -> None:
