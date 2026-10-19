@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from skill_audit.models import AuditPack, AuditStatus, Finding5C, RiskLevel
+from skill_audit.models import AuditDomain, AuditPack, AuditStatus, Finding5C, RiskLevel
 
 
 class ReportExporter:
@@ -12,6 +12,20 @@ class ReportExporter:
 
     def export_report(self, pack: AuditPack, output_file: str | Path | None = None) -> str:
         """Render formal Laporan Hasil Audit (LHA) in Markdown format."""
+        is_apip = (
+            pack.domain == AuditDomain.GOVERNMENT
+            or pack.human_sign_off.signoff_type == "aaipi"
+            or any("saaipi" in d.content.lower() or "apip" in d.content.lower() for d in pack.documents)
+        )
+        if is_apip:
+            from skill_audit.knowledge.saaipi_standards import format_lha_aaipi
+            report_text = format_lha_aaipi(pack)
+            if output_file:
+                p = Path(output_file)
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(report_text, encoding="utf-8")
+            return report_text
+
         lines: list[str] = [
             f"# LAPORAN HASIL AUDIT DOKUMEN (LHA)",
             f"**Referensi Penugasan:** `{pack.audit_ref}`  ",
@@ -22,7 +36,7 @@ class ReportExporter:
             "",
             "---",
             "",
-            "## 1. RINGKASAN EKSEKUTIF & OPINI AUDIT",
+            "## 1. RINGKASAN EKSEKUTIF & KESIMPULAN PENGAWASAN",
             pack.executive_summary,
             "",
             "### 1.1 Metrik Ringkasan Pemeriksaan",
@@ -215,7 +229,7 @@ class ReportExporter:
             "",
             "---",
             "",
-            "## 11. LEMBAR PENGESAHAN & OPINI AUDITOR MANUSIA (HUMAN SIGN-OFF)",
+            "## 11. LEMBAR PENGESAHAN & KESIMPULAN AUDITOR (HUMAN SIGN-OFF)",
         ])
         so = pack.human_sign_off
         if so.is_signed:
@@ -224,14 +238,14 @@ class ReportExporter:
                 f"> **Nama Auditor Penanggung Jawab:** {so.reviewer_name}  ",
                 f"> **Jabatan / Registrasi:** {so.reviewer_role} (NIP/No. Reg: `{so.reviewer_license_or_nip}`)  ",
                 f"> **Tanggal Pengesahan:** {so.signed_at}  ",
-                f"> **Kesimpulan & Opini Audit:** **{so.audit_opinion}**  ",
+                f"> **Kesimpulan Pengawasan:** **{so.audit_opinion}**  ",
                 f"> **Catatan Akhir Auditor:**  \n> _{so.comments}_  ",
                 "",
                 "```",
                 f"   [DITANDATANGANI SECARA ELEKTRONIK]",
-                f"   Oleh : {so.reviewer_name}",
-                f"   Peran: {so.reviewer_role}",
-                f"   Opini: {so.audit_opinion}",
+                f"   Oleh      : {so.reviewer_name}",
+                f"   Peran     : {so.reviewer_role}",
+                f"   Simpulan  : {so.audit_opinion}",
                 "```",
             ])
         else:

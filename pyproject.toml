@@ -70,6 +70,8 @@ dev = [
 skillaudit = "skill_audit.cli:cli"
 audit-skill = "skill_audit.cli:cli"
 sa-audit = "skill_audit.cli:cli"
+aipi = "skill_audit.cli:aipi_standalone"
+saaipi = "skill_audit.cli:aipi_standalone"
 
 [tool.setuptools.packages.find]
 include = ["skill_audit*", "skills*"]

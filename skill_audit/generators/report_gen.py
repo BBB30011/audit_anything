@@ -65,15 +65,49 @@ class ReportGenerator:
         high_count = metrics.findings_by_risk.get("high", 0)
         med_count = metrics.findings_by_risk.get("medium", 0)
 
-        # Determine overall audit opinion
+        full_corpus = " ".join(d.content.lower() for d in documents)
+        is_apip = any(k in full_corpus for k in ["apip", "saaipi", "inspektorat", "bpkp", "itjen", "dpa", "apbd", "sp2d", "satker"])
+
+        if is_apip:
+            if crit_count > 0:
+                conclusion = "TIDAK EFEKTIF (Pengendalian intern gagal merespons risiko kritis, terdapat risiko tata kelola yang membutuhkan intervensi pimpinan)."
+            elif high_count > 0 or metrics.compliance_score < 75.0:
+                conclusion = "KURANG EFEKTIF (Memerlukan perbaikan signifikan pada efektivitas pengendalian intern dan penegakan regulasi)."
+            elif med_count > 0 or metrics.compliance_score < 90.0:
+                conclusion = "CUKUP EFEKTIF DENGAN CATATAN (SPIP memadai secara umum, terdapat rekomendasi perbaikan untuk mitigasi risiko)."
+            else:
+                conclusion = "SANGAT EFEKTIF (Tata kelola, pengelolaan risiko, dan pengendalian intern berjalan prima)."
+
+            doc_names = ", ".join(d.name for d in documents[:5])
+            if len(documents) > 5:
+                doc_names += f" dan {len(documents) - 5} berkas lainnya"
+
+            summary = (
+                f"### Ringkasan Eksekutif Pengawasan Intern APIP\n\n"
+                f"Aktivitas pengawasan intern atas **{title}** mencakup telaah dan pengujian mendalam terhadap {doc_count} berkas bukti "
+                f"({doc_names}). Pengawasan dilaksanakan berdasarkan **Standar Audit Intern Pemerintah Indonesia (SAAIPI - PER-01/AAIPI/DPN/2021)** "
+                f"dan PP No. 60 Tahun 2008 tentang Sistem Pengendalian Intern Pemerintah (SPIP).\n\n"
+                f"Sesuai mandat AAIPI, pengawasan ini berorientasi sebagai **mitra strategis (*strategic partner*)** dan **peringatan dini (*early warning system*)** "
+                f"guna memberikan nilai tambah serta mendorong perbaikan tata kelola berkelanjutan bagi auditi, bukan sebagai pemeriksa eksternal yang mencari kesalahan.\n\n"
+                f"**Simpulan Hasil Pengawasan Intern APIP:**\n"
+                f"> Tingkat Efektivitas Pengendalian Intern (SPIP): **{conclusion}**\n\n"
+                f"**Sorotan Hasil Pengawasan:**\n"
+                f"- Total Area Rekomendasi 5C: **{f_count}** area (Kritis: {crit_count}, Tinggi: {high_count}, Sedang: {med_count}).\n"
+                f"- Skor Kepatuhan Regulasi SAAIPI: **{metrics.compliance_score:.1f}%**.\n"
+                f"- Akurasi Aritmatika & Beban Anggaran: **{metrics.arithmetic_accuracy:.1f}%**.\n"
+                f"- Tingkat Bukti Sahih (Grounding Rate): **{metrics.evidence_grounding_rate:.1f}%**.\n"
+            )
+            return summary
+
+        # Commercial / General Audits
         if crit_count > 0:
-            opinion = "TIDAK MEMADAI (Adverse / Unsatisfactory) dengan temuan risiko kritis yang memerlukan tindakan perbaikan segera."
+            opinion = "TIDAK MEMADAI (Unsatisfactory) dengan temuan risiko kritis yang memerlukan tindakan mitigasi segera."
         elif high_count > 0 or metrics.compliance_score < 75.0:
-            opinion = "MEMERLUKAN PERBAIKAN SIGNIFIKAN (Qualified / Needs Improvement) terkait kontrol kepatuhan dan konsistensi transaksi."
+            opinion = "MEMERLUKAN PERBAIKAN SIGNIFIKAN (Needs Improvement) terkait kontrol kepatuhan dan konsistensi transaksi."
         elif med_count > 0 or metrics.compliance_score < 90.0:
             opinion = "CUKUP MEMADAI DENGAN CATATAN (Satisfactory with Exceptions) dengan kepatuhan umum yang baik."
         else:
-            opinion = "MEMADAI (Unqualified / Satisfactory) di mana seluruh dokumen memenuhi standar administratif dan substansi yang diuji."
+            opinion = "MEMADAI (Satisfactory) di mana seluruh dokumen memenuhi standar administratif dan substansi yang diuji."
 
         doc_names = ", ".join(d.name for d in documents[:5])
         if len(documents) > 5:
@@ -84,7 +118,7 @@ class ReportGenerator:
             f"Pemeriksaan kepatuhan dan keabsahan dokumen atas **{title}** mencakup analisis terhadap {doc_count} dokumen "
             f"({doc_names}). Pengujian mencakup uji kelengkapan administratif, uji perhitungan aritmatika dan perpajakan, "
             f"rekonsiliasi silang 3-Way Matching (Kontrak - BAST - Invoice - Bukti Pembayaran), serta kepatuhan klausul standar.\n\n"
-            f"**Opini / Kesimpulan Pemeriksaan:**\n"
+            f"**Kesimpulan Pemeriksaan Internal:**\n"
             f"> Status Pengendalian Internal: **{opinion}**\n\n"
             f"**Sorotan Hasil Pemeriksaan:**\n"
             f"- Total Temuan Audit: **{f_count}** temuan (Kritis: {crit_count}, Tinggi: {high_count}, Sedang: {med_count}).\n"
@@ -102,9 +136,10 @@ class ReportGenerator:
         metrics: AuditMetric,
     ) -> str:
         system_prompt = (
-            "Anda adalah Senior Lead Auditor bersertifikasi CIA, CISA, dan QIA. "
-            "Tugas Anda adalah menyusun Ringkasan Eksekutif (Executive Summary) formal, berbobot, objektif, "
-            "dan berlandaskan data temuan empiris. Gunakan bahasa Indonesia formal audit (Bahasa Baku)."
+            "Anda adalah Senior Lead Auditor APIP bersertifikasi JFA, CIPA, dan CRMO yang menguasai Standar Audit Intern Pemerintah Indonesia (SAAIPI - PER-01/AAIPI/DPN/2021). "
+            "Anda bertindak sebagai mitra strategis (strategic partner) dan konsultan internal terpercaya (trusted advisor), bukan pemeriksa yudikatif eksternal seperti BPK. "
+            "Fokuskan ringkasan pada pencegahan dini (early warning system), efektivitas 3 pilar (Tata Kelola, Manajemen Risiko, Pengendalian Intern SPIP), "
+            "serta rekomendasi konstruktif solutif bagi pimpinan instansi. Gunakan bahasa Indonesia formal audit baku."
         )
         finding_summaries = "\n".join(
             f"- [{f.id}][{f.risk_level.value.upper()}] {f.title}: {f.condition}"

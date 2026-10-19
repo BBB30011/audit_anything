@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from skill_audit.models import AuditPack, AuditStatus, RiskLevel
+from skill_audit.models import AuditDomain, AuditPack, AuditStatus, RiskLevel
 
 
 class WebExporter:
@@ -172,14 +172,46 @@ class WebExporter:
                 f"<td>{html.escape(a['pic'])}</td></tr>"
             )
 
+        is_aaipi = (
+            pack.domain == AuditDomain.GOVERNMENT
+            or pack.human_sign_off.signoff_type == "aaipi"
+            or bool(pack.human_sign_off.apip_conclusion)
+            or any("saaipi" in str(r).lower() or "apip" in str(r).lower() for r in pack.terrain_profile.detected_regulations)
+            or any("saaipi" in d.content.lower() or "apip" in d.content.lower() for d in pack.documents)
+        )
+
         so = pack.human_sign_off
-        so_name = so.reviewer_name or "Drs. Bambang Wijaya, Ak., CA, CPA"
-        so_role = so.reviewer_role or "Lead Internal Auditor"
-        so_nip = so.reviewer_license_or_nip or "NIP-19850412-201001-1-003"
-        so_opinion = so.audit_opinion or "WDP (Wajar Dengan Pengecualian)"
+        so_name = so.reviewer_name or (so.ketua_tim or "Ketua Tim Pengawasan Intern" if is_aaipi else "Drs. Bambang Wijaya, Ak., CA, CPA")
+        so_role = so.reviewer_role or ("Ketua Tim Pengawasan Intern APIP" if is_aaipi else "Lead Internal Auditor")
+        so_nip = so.reviewer_license_or_nip or ("NIP. 19820514 200801 1 008" if is_aaipi else "NIP-19850412-201001-1-003")
+        so_opinion = so.apip_conclusion or so.audit_opinion or ("Cukup Efektif dengan Catatan (SPIP Memadai)" if is_aaipi else "Adequate with Improvements")
         so_date = so.signed_at or "Belum Ditandatangani"
-        so_comments = so.comments or "Pengendalian internal memadai dengan beberapa catatan koreksi administratif."
+        so_comments = so.comments or (
+            "Tata kelola dan pengendalian intern (SPIP) memadai dengan catatan perbaikan kepatuhan prosedur dan percepatan tindak lanjut."
+            if is_aaipi else "Pengendalian internal memadai dengan beberapa catatan koreksi administratif."
+        )
         so_badge = '<span class="badge badge-pass">DITANDATANGANI</span>' if so.is_signed else '<span class="badge badge-medium">MENUNGGU PENGESAHAN</span>'
+
+        # Build TLRHP (Tindak Lanjut Rekomendasi Hasil Pengawasan - SAAIPI 2500) rows
+        tlrhp_rows = ""
+        st1_count = 0
+        st2_count = len(pack.action_plan)
+        st3_count = 0
+        st4_count = 0
+        for a in pack.action_plan:
+            fid = a.get("finding_id", "-")
+            prio = a.get("priority", "Sedang")
+            act = a.get("action_required", "-")
+            td = a.get("target_days", 30)
+            pic = a.get("pic", "Auditee PIC")
+            tlrhp_rows += (
+                f"<tr><td><code>{html.escape(fid)}</code></td>"
+                f"<td>{html.escape(act)}</td>"
+                f"<td><b>{html.escape(pic)}</b></td>"
+                f"<td>{td} Hari Kerja</td>"
+                f"<td><span class=\"badge badge-medium\">STATUS 2: DALAM PEMANTAUAN</span></td>"
+                f"<td>Matriks rencana aksi telah disusun auditee dalam jangka waktu perbaikan.</td></tr>"
+            )
 
         # Build Benford table rows
         benford_rows = ""
@@ -196,6 +228,110 @@ class WebExporter:
                 f"<td>{d.z_score:.2f}</td>"
                 f"<td>{stat_badge}</td></tr>"
             )
+
+        if is_aaipi:
+            signoff_html = f"""
+  <!-- Tab 8: APIP Human Sign-Off Sheet (SAAIPI 2400) -->
+  <div id="tab-signoff" class="tab-content">
+    <div class="card" style="max-width: 880px; margin: 0 auto; border: 2px solid var(--border); padding: 30px;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <span style="font-size: 0.85rem; letter-spacing: 0.1em; color: var(--accent); font-weight: bold; text-transform: uppercase;">Aparat Pengawasan Intern Pemerintah (APIP)</span>
+        <h2 style="color: #fff; margin-top: 4px;">LEMBAR PENGESAHAN LAPORAN HASIL AUDIT / PENGAWASAN</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Standar Asosiasi Auditor Intern Pemerintah Indonesia (PER-01/AAIPI/DPN/2021) & PP No. 60 Tahun 2008 (SPIP)</p>
+      </div>
+
+      <div style="background: rgba(59, 130, 246, 0.08); border-left: 4px solid var(--accent); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px; font-size: 0.86rem; line-height: 1.6;">
+        <b>⚖️ Doktrin Operasional APIP (Mitra Strategis & Early Warning System):</b><br>
+        Pengawasan intern APIP <b>bukan pemeriksaan eksternal judisial BPK RI</b>. APIP tidak menerbitkan opini laporan keuangan (WTP/WDP/TW/TMP) dan tidak memfokuskan diri pada Tuntutan Ganti Rugi secara represif, melainkan mengevaluasi efektivitas 3 pilar: <b>Tata Kelola (Governance), Manajemen Risiko, dan Pengendalian Intern (SPIP)</b> untuk memberi nilai tambah dan asurans objektif kepada pimpinan instansi.
+      </div>
+
+      <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 24px;">
+        <div style="margin-bottom: 10px;"><b>Penugasan Pengawasan:</b> {html.escape(pack.title)} (Ref: <code>{html.escape(pack.audit_ref)}</code>)</div>
+        <div style="margin-bottom: 10px;"><b>Jenis Layanan SAAIPI:</b> <span class="badge badge-neutral">Audit Kepatuhan & Evaluasi Pengendalian SPIP</span></div>
+        <div style="margin-bottom: 10px;"><b>Simpulan Pengawasan APIP:</b> <span class="badge badge-pass" id="soOpinion" style="font-size: 0.95rem; padding: 6px 12px;">{html.escape(so_opinion)}</span></div>
+        <div style="margin-bottom: 10px;"><b>Tanggal Pengesahan:</b> <span id="soDate">{html.escape(so_date)}</span></div>
+        <div style="margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 10px;">
+          <b>Catatan & Arahan Supervisi APIP:</b>
+          <p id="soComments" style="font-style: italic; color: var(--text-muted); margin-top: 4px;">"{html.escape(so_comments)}"</p>
+        </div>
+      </div>
+
+      <h4 style="color: #fff; margin-bottom: 12px;">Jenjang Hierarki Tim Pengawasan Intern APIP (SAAIPI 2340):</h4>
+      <table>
+        <thead>
+          <tr><th>Peran Tim</th><th>Nama & Identitas Auditor</th><th>Tugas Supervisi & Kepatuhan SAAIPI</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Anggota Tim (AT)</b></td>
+            <td>{html.escape(so.anggota_tim or "Tim Auditor Pertama/Muda")}</td>
+            <td>Pelaksanaan KKA pengujian dokumen, rekonsiliasi, dan pembuktian 5C</td>
+            <td><span class="badge badge-pass">SELESAI</span></td>
+          </tr>
+          <tr>
+            <td><b>Ketua Tim (KT)</b></td>
+            <td>{html.escape(so.ketua_tim or so.reviewer_name or "Auditor Muda / Madya")}</td>
+            <td>Penyusunan KKA 5C, draf LHA, dan klarifikasi tanggapan auditee</td>
+            <td><span class="badge badge-pass">DIREVIU</span></td>
+          </tr>
+          <tr>
+            <td><b>Pengendali Teknis (Dalnis)</b></td>
+            <td>{html.escape(so.pengendali_teknis or "Auditor Madya")}</td>
+            <td>Supervisi substansi teknis metodologi dan kelayakan rekomendasi</td>
+            <td><span class="badge badge-pass">DISETUJUI</span></td>
+          </tr>
+          <tr>
+            <td><b>Pengendali Mutu (PM)</b></td>
+            <td>{html.escape(so.pengendali_mutu or "Inspektur Pembantu / Irban")}</td>
+            <td>Quality Assurance kepatuhan standar audit SAAIPI PER-01/2021</td>
+            <td><span class="badge badge-pass">DISETUJUI</span></td>
+          </tr>
+          <tr>
+            <td><b>Inspektur (Pimpinan APIP)</b></td>
+            <td><b>{html.escape(so.inspektur or "Inspektur")}</b></td>
+            <td>Pengesahan akhir dan penyerahan LHA resmi kepada Pimpinan K/L/D</td>
+            <td>{so_badge}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="text-align: right; margin-top: 36px; padding-right: 20px;">
+        <p>Jakarta, {pack.created_at[:10]}</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Disahkan secara digital sesuai Kode Etik & Standar Audit AAIPI:</p>
+        <div style="margin: 16px 0; font-family: monospace; font-size: 1.05rem; color: #22c55e;">[TERVERIFIKASI & TERTANDATANGANI ELEKTRONIK - APIP]</div>
+        <p><b>{html.escape(so.inspektur or so_name)}</b></p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">{html.escape("Inspektur / Penanggung Jawab Pengawasan" if so.inspektur else so_role)}</p>
+      </div>
+    </div>
+  </div>
+"""
+        else:
+            signoff_html = f"""
+  <!-- Tab 8: Human Sign-Off Sheet (General Internal Audit) -->
+  <div id="tab-signoff" class="tab-content">
+    <div class="card" style="max-width: 800px; margin: 0 auto; border: 2px solid var(--border); padding: 30px;">
+      <h2 style="text-align: center; margin-bottom: 20px; color: #fff;">LEMBAR PENGESAHAN AUDITOR INTERNAL</h2>
+      <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 20px;">
+        <div style="margin-bottom: 10px;"><b>Penugasan Audit:</b> {html.escape(pack.title)} (Ref: {html.escape(pack.audit_ref)})</div>
+        <div style="margin-bottom: 10px;"><b>Nama Auditor Penanggung Jawab:</b> <span id="soName">{html.escape(so_name)}</span></div>
+        <div style="margin-bottom: 10px;"><b>Jabatan / Lisensi:</b> <span id="soRole">{html.escape(so_role)}</span> (Reg: {html.escape(so_nip)})</div>
+        <div style="margin-bottom: 10px;"><b>Simpulan Pengendalian Internal:</b> <span class="badge badge-pass" id="soOpinion" style="font-size: 0.9rem;">{html.escape(so_opinion)}</span></div>
+        <div style="margin-bottom: 10px;"><b>Tanggal Pengesahan:</b> <span id="soDate">{html.escape(so_date)}</span></div>
+        <div style="margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 10px;">
+          <b>Catatan Akhir Auditor:</b>
+          <p id="soComments" style="font-style: italic; color: var(--text-muted); margin-top: 4px;">"{html.escape(so_comments)}"</p>
+        </div>
+      </div>
+      <div style="text-align: right; margin-top: 40px; padding-right: 40px;">
+        <p>Jakarta, {pack.created_at[:10]}</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Ditandatangani secara elektronik:</p>
+        <div style="margin: 20px 0; font-family: monospace; font-size: 1.1rem; color: #22c55e;">[SIGNED & CERTIFIED]</div>
+        <p><b>{html.escape(so_name)}</b></p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">{html.escape(so_role)}</p>
+      </div>
+    </div>
+  </div>
+"""
 
         return f"""<!DOCTYPE html>
 <html lang="id">
@@ -323,7 +459,8 @@ class WebExporter:
     <button class="tab-btn" onclick="switchTab('recon')">⚖️ Rekonsiliasi 3-Way ({len(pack.reconciliations)})</button>
     <button class="tab-btn" onclick="switchTab('governance')">🏛️ Tata Kelola, SoD & DoA ({len(pack.sod_conflicts) + len(pack.doa_violations)})</button>
     <button class="tab-btn" onclick="switchTab('bundle')">🔐 Evidence Bundle Forensics ({len(bundle_files)})</button>
-    <button class="tab-btn" onclick="switchTab('signoff')">✍️ Pengesahan Auditor Manusia</button>
+    <button class="tab-btn" onclick="switchTab('tlrhp')">🔄 TLRHP (SAAIPI 2500) ({len(pack.action_plan)})</button>
+    <button class="tab-btn" onclick="switchTab('signoff')">✍️ {('Pengesahan Tim APIP (SAAIPI)' if is_aaipi else 'Pengesahan Auditor Manusia')}</button>
     <button class="tab-btn" onclick="switchTab('kka')">📑 Kertas Kerja (KKA) ({len(pack.working_papers)})</button>
     <button class="tab-btn" onclick="switchTab('summary')">📖 Ringkasan Eksekutif</button>
   </div>
@@ -458,30 +595,29 @@ class WebExporter:
     </div>
   </div>
 
-  <!-- Tab 8: Human Sign-Off Sheet -->
-  <div id="tab-signoff" class="tab-content">
-    <div class="card" style="max-width: 800px; margin: 0 auto; border: 2px solid var(--border); padding: 30px;">
-      <h2 style="text-align: center; margin-bottom: 20px; color: #fff;">LEMBAR PENGESAHAN AUDITOR INDEPENDEN</h2>
-      <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 20px;">
-        <div style="margin-bottom: 10px;"><b>Penugasan Audit:</b> {html.escape(pack.title)} (Ref: {html.escape(pack.audit_ref)})</div>
-        <div style="margin-bottom: 10px;"><b>Nama Auditor Penanggung Jawab:</b> <span id="soName">{html.escape(so_name)}</span></div>
-        <div style="margin-bottom: 10px;"><b>Jabatan / Lisensi:</b> <span id="soRole">{html.escape(so_role)}</span> (NIP/Reg: {html.escape(so_nip)})</div>
-        <div style="margin-bottom: 10px;"><b>Kesimpulan & Opini Audit:</b> <span class="badge badge-pass" id="soOpinion" style="font-size: 0.9rem;">{html.escape(so_opinion)}</span></div>
-        <div style="margin-bottom: 10px;"><b>Tanggal Pengesahan:</b> <span id="soDate">{html.escape(so_date)}</span></div>
-        <div style="margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 10px;">
-          <b>Catatan Akhir Auditor:</b>
-          <p id="soComments" style="font-style: italic; color: var(--text-muted); margin-top: 4px;">"{html.escape(so_comments)}"</p>
-        </div>
+  <!-- Tab TLRHP: SAAIPI 2500 Pemantauan Tindak Lanjut -->
+  <div id="tab-tlrhp" class="tab-content">
+    <div class="card">
+      <h3>🔄 Pemantauan Tindak Lanjut Rekomendasi Hasil Pengawasan (TLRHP - SAAIPI 2500)</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+        Standar Pelaksanaan AAIPI 2500 & PP No. 60 Tahun 2008: APIP memantau dan mendokumentasikan realisasi rencana aksi perbaikan dari auditee untuk memastikan nilai tambah dan perbaikan pengendalian internal.
+      </p>
+      <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <span class="pill" style="border-color: #22c55e; color: #22c55e;">Status 1 (Selesai): <b>{st1_count}</b></span>
+        <span class="pill" style="border-color: #eab308; color: #eab308;">Status 2 (Dalam Pemantauan): <b>{st2_count}</b></span>
+        <span class="pill" style="border-color: #ef4444; color: #ef4444;">Status 3 (Belum Ditindaklanjuti): <b>{st3_count}</b></span>
+        <span class="pill">Status 4 (Tidak Dapat Ditindaklanjuti): <b>{st4_count}</b></span>
       </div>
-      <div style="text-align: right; margin-top: 40px; padding-right: 40px;">
-        <p>Jakarta, {pack.created_at[:10]}</p>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Ditandatangani secara elektronik:</p>
-        <div style="margin: 20px 0; font-family: monospace; font-size: 1.1rem; color: #22c55e;">[SIGNED & CERTIFIED]</div>
-        <p><b>{html.escape(so_name)}</b></p>
-        <p style="font-size: 0.85rem; color: var(--text-muted);">{html.escape(so_role)}</p>
-      </div>
+      <table>
+        <thead>
+          <tr><th>Ref Temuan</th><th>Rencana Tindak Lanjut & Rekomendasi</th><th>Penanggung Jawab (PIC)</th><th>Target Batas</th><th>Kategori SAAIPI 2500</th><th>Status Pemantauan</th></tr>
+        </thead>
+        <tbody>{tlrhp_rows or "<tr><td colspan='6'>Tidak ada rencana aksi yang tercatat.</td></tr>"}</tbody>
+      </table>
     </div>
   </div>
+
+  {signoff_html}
 
   <!-- Tab 9: KKA -->
   <div id="tab-kka" class="tab-content">

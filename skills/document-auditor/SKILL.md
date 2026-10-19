@@ -97,15 +97,24 @@ flowchart LR
     A["AI Automated Audit\n(skillaudit audit)"] --> B["Evidence Bundle &\n5C Findings Draft"]
     B --> C["Human-in-the-Loop Triage\n(skillaudit triage / Web UI)"]
     C --> D["Resolve Unknowns &\nAdjust Risk"]
-    D --> E["Formal Auditor Sign-Off\n(WTP / WDP / Adverse / Disclaimer)"]
-    E --> F["Certified Deliverables\n(LHA + Evidence ZIP)"]
+    D --> E["Formal Auditor / APIP Sign-Off\n(Simpulan SPIP / 5-Tier Review)"]
+    E --> F["Certified Deliverables\n(LHA APIP + Evidence ZIP)"]
 ```
 
 ---
 
 ## 5. Public Sector & APIP Audit Framework (PER-01/AAIPI/DPN/2021 SAAIPI)
 
-Audits in the Indonesian public sector (APIP: BPKP, Itjen K/L, Inspektorat Daerah, SPI BLU) are strictly bound to **PER-01/AAIPI/DPN/2021**:
+### Doktrin Pengawasan APIP vs Pemeriksaan BPK
+
+| Aspek Pembeda | Pengawasan Intern APIP (PER-01/AAIPI/DPN/2021 & PP 60/2008) | Pemeriksaan Ekstern BPK (UU 15/2004 & SPKN) |
+|:---|:---|:---|
+| **Peran & Kedudukan** | **Mitra Strategis (*Strategic Partner*) & Peringatan Dini (*Early Warning System*)** bagi pimpinan | Pemeriksa eksternal independen judisial untuk DPR/DPRD/Publik |
+| **Bentuk Pernyataan** | **Simpulan Efektivitas 3 Pilar SPIP** (*Sangat Efektif, Cukup Efektif dg Catatan, Kurang Efektif, Tidak Efektif*) / *Pernyataan Telah Direviu* | **Opini Laporan Keuangan** (*WTP, WDP, Tidak Wajar / TW, Menolak Memberikan Opini / TMP*) |
+| **Fokus Pengujian** | Keandalan Tata Kelola (GCG), Manajemen Risiko (ERM), dan Sistem Pengendalian Intern (SPIP) | Kepatuhan UU, Akuntabilitas Fiskal, Kerugian Negara & Tuntutan Ganti Rugi (TGR) |
+| **Format Dokumen** | **Laporan Hasil Audit/Pengawasan (LHA APIP)** dengan Bab I - Bab V | **Laporan Hasil Pemeriksaan (LHP BPK)** Buku I, II, III |
+| **Hierarki Pengesahan** | **5-Tier Tim Pengawasan**: Anggota Tim (AT) $\rightarrow$ Ketua Tim (KT) $\rightarrow$ Dalnis $\rightarrow$ Dalmutu (PM/Irban) $\rightarrow$ Inspektur | Penanggung Jawab Pemeriksaan BPK & Anggota BPK |
+| **Tindak Lanjut** | **TLRHP 4 Kategori Baku SAAIPI 2500** bersama Auditee (Rencana Aksi PIC) | Pemantauan Kerugian Negara / Sidang TGR Majelis BPK |
 
 1. **Prinsip Etika APIP**:
    - **Integritas**: Kejujuran, keteguhan moral, dan keberanian menegakkan kebenaran.
@@ -138,15 +147,15 @@ Audits in the Indonesian public sector (APIP: BPKP, Itjen K/L, Inspektorat Daera
 ## 6. CLI Execution Reference
 
 ```bash
-# 1. Universal Audit Across Any Domain
+# 1. Universal Audit Across Any Domain (Auto-detect Domain & Standards)
 skillaudit audit path/to/dossier/ --output output/ --format all
 
-# 2. Inspect Detected Audit Terrain
-skillaudit terrain path/to/dossier/
-
-# 3. Evaluate Compliance with SAAIPI PER-01/AAIPI/DPN/2021
-skillaudit saaipi path/to/dossier_or_pack.yaml
+# 2. SAAIPI PER-01/AAIPI/DPN/2021 Compliance Evaluation (Table & JSON)
+aipi output/audit_pack.yaml --json
 skillaudit saaipi output/audit_pack.yaml --json
+
+# 3. Inspect Operational Audit Terrain
+skillaudit terrain path/to/dossier/
 
 # 4. Run Forensic Benford's Law Digital Analysis
 skillaudit benford output/audit_pack.yaml
@@ -161,9 +170,14 @@ skillaudit obligations output/audit_pack.yaml
 # 7. Verify Cryptographic Evidence Integrity (Tamper Detection)
 skillaudit verify-bundle output/audit_pack.yaml
 
-# 8. Interactive Human-AI Triage & Formal Sign-Off
+# 8. Interactive Human-AI Triage & Formal APIP Sign-Off
 skillaudit triage output/audit_pack.yaml
-skillaudit signoff output/audit_pack.yaml --name "Lead Auditor, CPA" --opinion "WTP"
+skillaudit signoff output/audit_pack.yaml \
+  --conclusion efektif_dengan_catatan \
+  --kt "Drs. Bambang Wijaya, Ak., CA, CRMO" \
+  --dalnis "Dr. Suryadi, Ak., M.Ak, CIA" \
+  --pm "Hj. Ratna Sari, SE., M.Si" \
+  --inspektur "Ir. Mochammad Hidayat, M.M."
 ```
 
 ---

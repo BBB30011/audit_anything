@@ -29,7 +29,14 @@ from skill_audit.analyzers.benford_analyzer import BenfordForensicAnalyzer
 from skill_audit.analyzers.terrain_detector import DomainTerrainDetector
 from skill_audit.knowledge.domain_profiles import DOMAIN_TERRAIN_PROFILES, list_all_terrains
 from skill_audit.knowledge.saaipi_standards import evaluate_saaipi_compliance
-from skill_audit.models import AuditDomain, AuditPack, HumanSignOff, RiskLevel, UnknownStatus
+from skill_audit.models import (
+    APIPConclusion,
+    AuditDomain,
+    AuditPack,
+    HumanSignOff,
+    RiskLevel,
+    UnknownStatus,
+)
 from skill_audit.parsers import parse_path
 from skill_audit.triage import run_interactive_triage
 from skill_audit.validation import validate_audit_pack
@@ -538,36 +545,98 @@ def triage_cmd(pack_file: str) -> None:
 
 @cli.command("signoff")
 @click.argument("pack_file", type=click.Path(exists=True))
-@click.option("--name", required=True, help="Full name of Lead Auditor.")
-@click.option("--role", default="Lead Internal Auditor", help="Professional role or title.")
+@click.option("--name", default="", help="Full name of Lead Auditor / Ketua Tim.")
+@click.option("--role", default="", help="Professional role or title.")
 @click.option("--nip", default="", help="Registration / NIP / CPA license number.")
 @click.option(
-    "--opinion",
+    "--conclusion",
     type=click.Choice([
-        "WTP (Wajar Tanpa Pengecualian)",
-        "WDP (Wajar Dengan Pengecualian)",
-        "Tidak Wajar (Adverse)",
-        "Menolak Memberikan Opini (Disclaimer)",
-    ]),
-    default="WDP (Wajar Dengan Pengecualian)",
-    help="Official audit conclusion opinion.",
+        "sangat_efektif",
+        "efektif_dengan_catatan",
+        "kurang_efektif",
+        "tidak_efektif",
+        "telah_direviu",
+        "konsultansi_advis",
+    ], case_sensitive=False),
+    default=None,
+    help="Simpulan Pengawasan APIP sesuai Standar AAIPI 2400 / PP 60/2008 SPIP.",
 )
+@click.option("--opinion", default=None, help="Official audit conclusion opinion.")
+@click.option("--at", "anggota_tim", default="", help="Nama/NIP Anggota Tim.")
+@click.option("--kt", "ketua_tim", default="", help="Nama/NIP Ketua Tim Pengawasan Intern.")
+@click.option("--dalnis", "pengendali_teknis", default="", help="Nama/NIP Pengendali Teknis (Dalnis).")
+@click.option("--pm", "pengendali_mutu", default="", help="Nama/NIP Pengendali Mutu / Irban.")
+@click.option("--inspektur", default="", help="Nama/NIP Inspektur / Penanggung Jawab APIP.")
 @click.option("--notes", default="", help="Auditor final comments or professional judgement.")
-def signoff_cmd(pack_file: str, name: str, role: str, nip: str, opinion: str, notes: str) -> None:
-    """Formally sign-off on an audit pack with professional auditor opinion."""
+def signoff_cmd(
+    pack_file: str,
+    name: str,
+    role: str,
+    nip: str,
+    conclusion: str | None,
+    opinion: str | None,
+    anggota_tim: str,
+    ketua_tim: str,
+    pengendali_teknis: str,
+    pengendali_mutu: str,
+    inspektur: str,
+    notes: str,
+) -> None:
+    """Formally sign-off on an audit pack with professional auditor opinion or SAAIPI APIP conclusion."""
     from datetime import datetime, timezone
 
     p = Path(pack_file)
     pack = AuditPack.from_yaml(p)
 
+    is_apip = (
+        conclusion is not None
+        or bool(ketua_tim or pengendali_teknis or pengendali_mutu or inspektur)
+        or pack.domain == AuditDomain.GOVERNMENT
+        or pack.human_sign_off.signoff_type == "aaipi"
+        or bool(pack.human_sign_off.apip_conclusion)
+        or any("saaipi" in str(r).lower() or "apip" in str(r).lower() for r in pack.terrain_profile.detected_regulations)
+        or any("saaipi" in d.content.lower() or "apip" in d.content.lower() for d in pack.documents)
+    )
+
+    conclusion_map = {
+        "sangat_efektif": APIPConclusion.SANGAT_EFEKTIF.value,
+        "efektif_dengan_catatan": APIPConclusion.EFEKTIF_DENGAN_CATATAN.value,
+        "kurang_efektif": APIPConclusion.KURANG_EFEKTIF.value,
+        "tidak_efektif": APIPConclusion.TIDAK_EFEKTIF.value,
+        "telah_direviu": APIPConclusion.TELAH_DIREVIU.value,
+        "konsultansi_advis": APIPConclusion.KONSULTANSI_ADVIS.value,
+    }
+
+    if conclusion:
+        final_conclusion = conclusion_map.get(conclusion.lower(), conclusion)
+    elif opinion:
+        final_conclusion = opinion
+    elif is_apip:
+        final_conclusion = APIPConclusion.EFEKTIF_DENGAN_CATATAN.value
+    else:
+        final_conclusion = "Adequate with Improvements (Memadai dengan Catatan)"
+
+    signer_name = name or (ketua_tim or "Drs. Bambang Wijaya, Ak., CA, CRMO")
+    signer_role = role or ("Ketua Tim Pengawasan Intern APIP" if is_apip else "Lead Internal Auditor")
+
     pack.human_sign_off = HumanSignOff(
-        reviewer_name=name,
-        reviewer_role=role,
+        reviewer_name=signer_name,
+        reviewer_role=signer_role,
         reviewer_license_or_nip=nip,
-        audit_opinion=opinion,
+        audit_opinion=final_conclusion,
         signed_at=datetime.now(timezone.utc).strftime("%d %B %Y, %H:%M UTC"),
-        comments=notes or "Pengesahan formal diterbitkan setelah pengujian kepatuhan dan rekonsiliasi dokumen.",
+        comments=notes or (
+            "Tata kelola dan sistem pengendalian intern (SPIP) dinilai memadai dengan beberapa catatan rekomendasi perbaikan kepatuhan prosedur."
+            if is_apip else "Pengendalian internal dinilai memadai dengan beberapa catatan koreksi administratif."
+        ),
         is_signed=True,
+        signoff_type="aaipi" if is_apip else "general",
+        apip_conclusion=final_conclusion if is_apip else "",
+        anggota_tim=anggota_tim or pack.human_sign_off.anggota_tim,
+        ketua_tim=ketua_tim or signer_name,
+        pengendali_teknis=pengendali_teknis or pack.human_sign_off.pengendali_teknis,
+        pengendali_mutu=pengendali_mutu or pack.human_sign_off.pengendali_mutu,
+        inspektur=inspektur or pack.human_sign_off.inspektur,
     )
     pack.to_yaml(p)
 
@@ -580,9 +649,12 @@ def signoff_cmd(pack_file: str, name: str, role: str, nip: str, opinion: str, no
     web_exp.export(pack, parent / f"{base_name}_dashboard.html")
 
     console.print(f"[bold green]✓ Berhasil mengesahkan AuditPack secara resmi![/]")
-    console.print(f"  • Penanggung Jawab : [bold white]{name}[/] ({role})")
-    console.print(f"  • NIP / Lisensi    : {nip or '-'}")
-    console.print(f"  • Opini Audit      : [bold cyan]{opinion}[/]")
+    console.print(f"  • Penanggung Jawab : [bold white]{signer_name}[/] ({signer_role})")
+    console.print(f"  • Simpulan/Opini   : [bold cyan]{final_conclusion}[/]")
+    if is_apip:
+        console.print(f"  • Standar          : [yellow]PER-01/AAIPI/DPN/2021 (SAAIPI) & PP 60/2008 SPIP[/]")
+        if ketua_tim or pengendali_teknis or pengendali_mutu or inspektur:
+            console.print(f"  • Tim APIP         : KT: {ketua_tim or '-'} | Dalnis: {pengendali_teknis or '-'} | PM: {pengendali_mutu or '-'} | Inspektur: {inspektur or '-'}")
     console.print(f"  • Disimpan ke      : [green]{p}[/]")
 
 
@@ -790,6 +862,18 @@ def saaipi_cmd(target: str, json_mode: bool) -> None:
             ev.notes,
         )
     console.print(std_table)
+
+
+# Register alias 'aipi' within skillaudit CLI group
+cli.add_command(saaipi_cmd, name="aipi")
+
+
+@click.command("aipi")
+@click.argument("target", type=click.Path(exists=True))
+@click.option("--json", "json_mode", is_flag=True, help="Output SAAIPI evaluation in JSON format.")
+def aipi_standalone(target: str, json_mode: bool) -> None:
+    """Standalone CLI shortcut for PER-01/AAIPI/DPN/2021 SAAIPI evaluation."""
+    saaipi_cmd.callback(target=target, json_mode=json_mode)
 
 
 # ======================================================================

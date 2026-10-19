@@ -687,3 +687,252 @@ def evaluate_saaipi_compliance(pack: AuditPack) -> SAAIPIComplianceReport:
         ethics_evaluations=ethics_dict,
         summary_verdict=verdict,
     )
+
+
+# ======================================================================
+# 5. Doktrin AAIPI vs BPK & Format LHA APIP SAAIPI
+# ======================================================================
+
+
+class AAIPIServiceType(str, Enum):
+    AUDIT_KETAATAN = "Audit Ketaatan / Kepatuhan (Compliance Audit)"
+    AUDIT_KINERJA = "Audit Kinerja (Performance Audit - 3E)"
+    REVIU = "Reviu Laporan Keuangan / Dokumen Anggaran (Review)"
+    EVALUASI = "Evaluasi Sistem Pengendalian Intern Pemerintah (SPIP) & AKIP"
+    PEMANTAUAN = "Pemantauan Tindak Lanjut Hasil Pengawasan (TLRHP SAAIPI 2500)"
+    KONSULTANSI = "Konsultansi, Asistensi & Pendampingan Tata Kelola (Advisory)"
+
+
+AAIPI_VS_BPK_DOCTRINE = {
+    "posisi_dan_mandat": {
+        "apip_aaipi": "Pengawas Intern Pemerintah (Mitra Strategis & Katalisator Perubahan internal kementerian/lembaga/pemda).",
+        "bpk": "Pemeriksa Eksternal Keuangan Negara independen berdasarkan UUD 1945 & UU 15/2004.",
+    },
+    "orientasi_dan_nada": {
+        "apip_aaipi": "Pencegahan dini (Early Warning System), konsultansi perbaikan sistemik, perbaikan tata kelola (GRC).",
+        "bpk": "Pemeriksaan yudikatif formal atas kewajaran penyajian akun neraca dan penghitungan kerugian negara.",
+    },
+    "jenis_laporan": {
+        "apip_aaipi": "Laporan Hasil Audit (LHA) / Laporan Hasil Pengawasan Intern APIP berorientasi solusi.",
+        "bpk": "Laporan Hasil Pemeriksaan (LHP) BPK yang memuat opini atau rekomendasi TGR.",
+    },
+    "kesimpulan_laporan": {
+        "apip_aaipi": "Simpulan Efektivitas 3 Pilar (Tata Kelola, Manajemen Risiko, Pengendalian Intern SPIP PP 60/2008), BUKAN Opini WTP/WDP.",
+        "bpk": "Opini Laporan Keuangan (WTP, WDP, Tidak Wajar/Adverse, Tidak Menyatakan Pendapat/Disclaimer).",
+    },
+    "struktur_penandatanganan": {
+        "apip_aaipi": "Hierarki Berjenjang APIP: Anggota Tim (AT), Ketua Tim (KT), Pengendali Teknis (Dalnis), Pengendali Mutu (PM/Irban), disahkan Pimpinan APIP (Inspektur).",
+        "bpk": "Penanggung Jawab Pemeriksaan BPK dan Wakil Penanggung Jawab.",
+    },
+    "sifat_rekomendasi": {
+        "apip_aaipi": "Konstruktif, realistis, aplikatif, dan memuat Tanggapan Resmi Auditi serta Action Plan bertarget waktu terukur.",
+        "bpk": "Instruksi formal penyetoran ke kas negara atau perbaikan administratif dalam batas waktu 60 hari.",
+    },
+}
+
+
+def format_lha_aaipi(pack: AuditPack) -> str:
+    """Render formal Laporan Hasil Audit (LHA) APIP according to PER-01/AAIPI/DPN/2021 SAAIPI.
+
+    Unlike BPK LHP reports, this follows the authentic APIP internal audit methodology:
+    - No WTP/WDP external opinion (instead: Simpulan Efektivitas Tata Kelola, Risiko, & SPIP)
+    - 5C Findings with Management Response & Action Plan
+    - TLRHP 4-Category Monitoring
+    - 5-Tier Hierarchical Sign-Off (AT, KT, Dalnis, PM, Inspektur)
+    """
+    so = pack.human_sign_off
+    simpulan = (
+        so.apip_conclusion
+        or (so.audit_opinion if "Efektif" in so.audit_opinion or "Reviu" in so.audit_opinion else "Cukup Efektif dengan Catatan (SPIP Memadai, Rekomendasi Bersifat Perbaikan)")
+    )
+
+    lines: list[str] = [
+        "# LAPORAN HASIL AUDIT INTERN (LHA APIP)",
+        "### Standar Audit Intern Pemerintah Indonesia (SAAIPI - PER-01/AAIPI/DPN/2021)",
+        f"**Nomor LHA APIP:** `LHA-{pack.audit_ref}`  ",
+        f"**Penugasan Pengawasan:** {pack.title}  ",
+        f"**Dasar Penugasan:** Surat Tugas Resmi Pimpinan APIP & Piagam Audit Intern (*Audit Charter*)  ",
+        f"**Instansi / Auditi:** {pack.scope}  ",
+        f"**Tanggal Penerbitan LHA:** {pack.created_at[:10]}  ",
+        f"**Kedudukan APIP:** Mitra Strategis (*Strategic Partner*) & Peringatan Dini (*Early Warning System*)  ",
+        "",
+        "---",
+        "",
+        "## BAB I: RINGKASAN EKSEKUTIF & SIMPULAN PENGAWASAN APIP",
+        "> *Catatan SAAIPI: APIP berfungsi memberikan penjaminan kualitas (assurance) dan konsultansi (advisory) bagi pimpinan instansi untuk memastikan tata kelola, manajemen risiko, dan pengendalian intern berjalan secara efektif. APIP tidak menerbitkan opini pemeriksaan eksternal (WTP/WDP).*  ",
+        "",
+        pack.executive_summary,
+        "",
+        "### 1.1 Simpulan Efektivitas Pengendalian Intern (SPIP PP No. 60/2008)",
+        f"> 🏛️ **SIMPULAN HASIL PENGAWASAN APIP:**  \n> **{simpulan}**",
+        "",
+        "### 1.2 Ringkasan Hasil Pengawasan Numerik & Tata Kelola",
+        "| Parameter Pengawasan APIP | Hasil Evaluasi | Status / Kategori |",
+        "|:---|:---:|:---:|",
+        f"| Jumlah Dokumen & Bukti Diuji | {pack.metrics.total_documents} Berkas | Informasi Pengawasan |",
+        f"| Skor Kepatuhan Regulasi SAAIPI | {pack.metrics.compliance_score:.1f}% | {'🟢 Memadai' if pack.metrics.compliance_score >= 80 else '🔴 Perlu Atensi Pimpinan'} |",
+        f"| Akurasi Aritmatika & Bukti Beban Anggaran | {pack.metrics.arithmetic_accuracy:.1f}% | {'🟢 Akurat' if pack.metrics.arithmetic_accuracy >= 90 else '🟡 Selisih Hitung'} |",
+        f"| Kecukupan Bukti Sahih (Grounding Rate) | {pack.metrics.evidence_grounding_rate:.1f}% | {'🟢 Bukti Cukup & Kompeten' if pack.metrics.evidence_grounding_rate >= 80 else '🟡 Perlu Konfirmasi Tambahan'} |",
+        f"| Total Temuan Pengawasan (5C) | {pack.metrics.total_findings} Area Perbaikan | {'🔴 Risiko Tinggi' if pack.metrics.findings_by_risk.get('critical', 0) > 0 else '🟡 Risiko Sedang'} |",
+        "",
+        f"- **Temuan Risiko Kritis:** {pack.metrics.findings_by_risk.get('critical', 0)} area",
+        f"- **Temuan Risiko Tinggi:** {pack.metrics.findings_by_risk.get('high', 0)} area",
+        f"- **Temuan Risiko Sedang:** {pack.metrics.findings_by_risk.get('medium', 0)} area",
+        f"- **Temuan Risiko Rendah / Saran:** {pack.metrics.findings_by_risk.get('low', 0)} area",
+        "",
+        "---",
+        "",
+        "## BAB II: DASAR PENUGASAN, SASARAN, & RUANG LINGKUP PENGAWASAN",
+        f"Aktivitas pengawasan intern ini dilaksanakan berdasarkan **Program Kerja Pengawasan Tahunan (PKPT)** berbasis risiko dan ketentuan **PER-01/AAIPI/DPN/2021 Standar 2200**.\n",
+        "- **Sasaran Pengawasan:** Menilai keandalan sistem pengendalian intern, kepatuhan terhadap regulasi yang berlaku, serta efisiensi dan efektivitas penggunaan anggaran.",
+        f"- **Ruang Lingkup:** {pack.scope}",
+        "- **Metodologi Pengawasan:** Pengujian dokumen bukti, rekonsiliasi silang 3-Way Reconciliation, evaluasi pengendalian intern COSO/SPIP, analisis digital forensik Benford's Law, dan wawancara dengan auditi.",
+        "",
+        "| No | Nama Dokumen / Berkas Bukti | Peran dalam Pengujian | Halaman/Lembar | Status Bukti |",
+        "|:---|:---|:---|:---:|:---:|",
+    ]
+
+    for idx, doc in enumerate(pack.documents, 1):
+        lines.append(f"| {idx} | `{doc.name}` | {doc.role_in_dossier.upper()} | {doc.total_pages_or_sheets} | 🟢 Terverifikasi |")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## BAB III: EVALUASI SISTEM PENGENDALIAN INTERN PEMERINTAH (SPIP)",
+        "> *Berdasarkan PP No. 60 Tahun 2008 tentang SPIP dan SAAIPI Standar 2100 (Tata Kelola, Manajemen Risiko, Pengendalian Intern).*  ",
+        "",
+    ])
+
+    if pack.control_evaluations:
+        lines.append("| Komponen SPIP / COSO | Prinsip Pengendalian | Status Efektivitas | Bukti / Catatan Evaluasi APIP |")
+        lines.append("|:---|:---|:---:|:---|")
+        for c in pack.control_evaluations:
+            st_badge = "🟢 Efektif" if c.status == "effective" else ("🟡 Cukup Efektif" if c.status == "partially_effective" else "🔴 Tidak Efektif")
+            lines.append(f"| `{c.component}` | {c.principle_title} | {st_badge} | {c.evidence_notes} |")
+        lines.append("")
+    else:
+        lines.append("> 🟢 **Pengendalian Intern Memadai:** Berdasarkan pengujian sampel, pengendalian internal entitas berjalan cukup baik.\n")
+
+    if pack.reconciliations:
+        lines.extend([
+            "### 3.1 Pengujian Rekonsiliasi Dokumen & Kesesuaian Beban Anggaran",
+            "| Uraian Uji Silang | Rincian Nilai Antar-Dokumen | Selisih | Hasil Uji APIP |",
+            "|:---|:---|:---:|:---:|",
+        ])
+        for r in pack.reconciliations:
+            vals_str = "<br>".join(f"- {k}: Rp {v:,.0f}" if isinstance(v, (int, float)) else f"- {k}: {v}" for k, v in r.doc_values.items())
+            diff_str = f"Rp {r.discrepancy_amount:,.0f}" if r.discrepancy_amount else "Rp 0"
+            stat_badge = "🟢 Sesuai" if r.status.value == "pass" else "🔴 Terdapat Selisih"
+            lines.append(f"| {r.item_description} | {vals_str} | {diff_str} | {stat_badge} |")
+        lines.append("")
+
+    if pack.sod_conflicts:
+        lines.extend([
+            "### 3.2 Evaluasi Pemisahan Tugas (Segregation of Duties - SoD)",
+            "| ID | Nama Pejabat / Pegawai | Peran Bertentangan | Dokumen Terkait | Risiko Pengendalian |",
+            "|:---:|:---|:---|:---|:---|",
+        ])
+        for s in pack.sod_conflicts:
+            lines.append(f"| `{s.conflict_id}` | **{s.individual_name}** | {s.role_a} vs {s.role_b} | {', '.join(s.document_refs)} | {s.risk_explanation} |")
+        lines.append("")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## BAB IV: TEMUAN HASIL PENGAWASAN APIP (STANDAR 5C) & TANGGAPAN AUDITI",
+        "> *Sesuai SAAIPI Standar 2420: Temuan pengawasan disusun berorientasi perbaikan dengan format 5C (Kondisi, Kriteria, Sebab, Akibat, Rekomendasi Konstruktif) serta dilengkapi Tanggapan Resmi Auditi (SAAIPI 2430).*  ",
+        "",
+    ])
+
+    if not pack.findings:
+        lines.append("> 🟢 **Tidak Ditemukan Kelemahan SPIP atau Ketidakpatuhan Signifikan.** Seluruh prosedur pengujian memenuhi kriteria.")
+    else:
+        for f in pack.findings:
+            risk_label = {
+                RiskLevel.CRITICAL: "🔴 **KRITIS**",
+                RiskLevel.HIGH: "🟠 **TINGGI**",
+                RiskLevel.MEDIUM: "🟡 **SEDANG**",
+                RiskLevel.LOW: "🔵 **RENDAH**",
+                RiskLevel.INFORMATIONAL: "⚪ **SARAN PERBAIKAN**",
+            }.get(f.risk_level, f.risk_level.value.upper())
+
+            lines.extend([
+                f"### [{f.id}] {f.title}",
+                f"- **Tingkat Risiko:** {risk_label} | **Area Pengawasan:** `{f.category}`",
+                "",
+                "#### A. Kondisi (Fakta Nyata di Lapangan)",
+                f"{f.condition}",
+                "",
+                "#### B. Kriteria (Ketentuan Regulasi / Standar Acuan)",
+                f"{f.criteria}",
+                "",
+                "#### C. Sebab (Akar Masalah Mengapa Terjadi)",
+                f"{f.cause}",
+                "",
+                "#### D. Akibat & Risiko (Dampak Finansial / Kinerja bagi Instansi)",
+                f"{f.consequence}",
+                "",
+                "#### E. Rekomendasi Solutif APIP (Saran Tindakan Konstruktif)",
+                f"{f.recommendation}",
+                "",
+                "#### F. Tanggapan Resmi Auditi & Rencana Aksi (Action Plan)",
+                f"> _{f.management_response or 'Auditi menerima temuan dan rekomendasi APIP serta berkomitmen melaksanakan perbaikan sesuai target waktu yang disepakati.'}_  ",
+                f"> **Target Batas Waktu Penyelesaian:** `{f.remediation_deadline_days} Hari Kalender`",
+                "",
+            ])
+            if f.evidence:
+                lines.append("#### Bukti Terverifikasi Pendukung KKA:")
+                for ev in f.evidence:
+                    lines.append(f"> 📄 **{ev.document}** ({ev.locator}):\n> \"_{ev.excerpt}_\"")
+                lines.append("")
+            lines.append("---\n")
+
+    # Bab V: TLRHP
+    lines.extend([
+        "",
+        "## BAB V: PEMANTAUAN TINDAK LANJUT HASIL PENGAWASAN (TLRHP SAAIPI 2500)",
+        "> *Sesuai SAAIPI Standar 2500: Pimpinan APIP wajib memantau tindak lanjut rekomendasi hasil pengawasan dengan 4 klasifikasi status kepatuhan baku.*  ",
+        "",
+        "| No | ID Temuan | Langkah Tindak Lanjut yang Harus Dilakukan | Batas Waktu | PIC / Penanggung Jawab | Status TLRHP |",
+        "|:---:|:---:|:---|:---:|:---|:---:|",
+    ])
+
+    for step in pack.action_plan:
+        lines.append(
+            f"| {step.get('step_no', 1)} | `{step.get('finding_id', '')}` | {step.get('action_required', '')} | "
+            f"{step.get('target_days', 30)} Hari | {step.get('pic', 'Auditi Terkait')} | 🟡 Status 2 (Dalam Proses) |"
+        )
+
+    # Lembar Pengesahan Hierarkis APIP
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## LEMBAR PENGESAHAN HIERARKIS TIM PENGAWASAN INTERN APIP",
+        "> *Sesuai SAAIPI Standar 2230 & Standar 2340: Pengawasan intern disupervisi dan direviu secara berjenjang oleh tim APIP yang kompeten.*  ",
+        "",
+        f"**Simpulan Pengawasan APIP:** {simpulan}  ",
+        f"**Tanggal Pengesahan:** {so.signed_at or pack.created_at[:10]}  ",
+        "",
+        "| Tingkat Peran APIP | Nama Pejabat / Auditor | Pangkat / Golongan / NIP | Status Pengesahan |",
+        "|:---|:---|:---|:---:|",
+        f"| **Anggota Tim (AT)** | {so.anggota_tim or 'Auditor Pertama / Ahli Pratama'} | NIP. Terlampir di KKA | 🟢 Telah Menguji KKA |",
+        f"| **Ketua Tim (KT)** | {so.ketua_tim or so.reviewer_name or 'Ketua Tim Audit APIP'} | NIP. {so.reviewer_license_or_nip or '19880512-201201-1-002'} | 🟢 Reviu KKA Selesai |",
+        f"| **Pengendali Teknis (Dalnis)** | {so.pengendali_teknis or 'Pengendali Teknis APIP, CIPA'} | NIP. Terlampir di KKA | 🟢 Reviu Teknis Selesai |",
+        f"| **Pengendali Mutu (PM)** | {so.pengendali_mutu or 'Inspektur Pembantu (Irban)'} | NIP. Terlampir di KKA | 🟢 Telaah Mutu Disetujui |",
+        f"| **Penanggung Jawab / Inspektur** | {so.inspektur or 'Inspektur Daerah / Kepala BPKP'} | Pimpinan APIP | 🟢 LHA Diterbitkan Resmi |",
+        "",
+        "```",
+        "   [TELAH DISAHKAN & DIVERIFIKASI SESUAI STANDAR SAAIPI]",
+        f"   Nomor LHA APIP : LHA-{pack.audit_ref}",
+        f"   Dasar Regulasi : PER-01/AAIPI/DPN/2021",
+        f"   Simpulan Akhir : {simpulan}",
+        "```",
+        "",
+        "---\n*Laporan Hasil Audit (LHA) ini disusun secara independen dan objektif oleh APIP untuk kepentingan Pimpinan Instansi Pemerintah.*",
+    ])
+
+    return "\n".join(lines)
+

@@ -463,17 +463,36 @@ class EvidenceBundleManifest:
         )
 
 
+class APIPConclusion(str, Enum):
+    """Simpulan Hasil Pengawasan Intern APIP sesuai PER-01/AAIPI/DPN/2021 (Bukan Opini BPK)."""
+
+    SANGAT_EFEKTIF = "Sangat Efektif (Tata Kelola, Risiko, & SPIP Berjalan Prima)"
+    EFEKTIF_DENGAN_CATATAN = "Cukup Efektif dengan Catatan (SPIP Memadai, Rekomendasi Bersifat Perbaikan)"
+    KURANG_EFEKTIF = "Kurang Efektif (Memerlukan Perbaikan Signifikan pada Tata Kelola/Pengendalian)"
+    TIDAK_EFEKTIF = "Tidak Efektif (Berisiko Kritis, Pengendalian Intern Gagal Mengatasi Risiko)"
+    TELAH_DIREVIU = "Pernyataan Telah Direviu (Reviu LK / Negative Assurance)"
+    KONSULTANSI_ADVIS = "Advis Strategis Tata Kelola (Consulting Advisory)"
+
+
 @dataclass
 class HumanSignOff:
-    """Formal Human Auditor Sign-Off and Professional Judgement Opinion."""
+    """Formal Human Auditor Sign-Off supporting AAIPI APIP hierarchy and standard reviews."""
 
     reviewer_name: str = ""
     reviewer_role: str = ""
     reviewer_license_or_nip: str = ""
-    audit_opinion: str = "WTP (Wajar Tanpa Pengecualian)"  # WTP, WDP, Tidak Wajar, Disclaimer
+    audit_opinion: str = "Cukup Efektif dengan Catatan (Memadai)"
     signed_at: str = ""
     comments: str = ""
     is_signed: bool = False
+    # SAAIPI APIP Hierarchical Structure
+    signoff_type: str = "general"  # "aaipi" or "general"
+    apip_conclusion: str = ""  # SAAIPI conclusion
+    anggota_tim: str = ""  # Nama & NIP AT
+    ketua_tim: str = ""  # Nama & NIP KT
+    pengendali_teknis: str = ""  # Nama & NIP Dalnis
+    pengendali_mutu: str = ""  # Nama & NIP PM / Irban
+    inspektur: str = ""  # Nama & NIP Pimpinan APIP
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -484,6 +503,13 @@ class HumanSignOff:
             "signed_at": self.signed_at,
             "comments": self.comments,
             "is_signed": self.is_signed,
+            "signoff_type": self.signoff_type,
+            "apip_conclusion": self.apip_conclusion,
+            "anggota_tim": self.anggota_tim,
+            "ketua_tim": self.ketua_tim,
+            "pengendali_teknis": self.pengendali_teknis,
+            "pengendali_mutu": self.pengendali_mutu,
+            "inspektur": self.inspektur,
         }
 
     @classmethod
@@ -492,10 +518,17 @@ class HumanSignOff:
             reviewer_name=str(data.get("reviewer_name", "")),
             reviewer_role=str(data.get("reviewer_role", "")),
             reviewer_license_or_nip=str(data.get("reviewer_license_or_nip", "")),
-            audit_opinion=str(data.get("audit_opinion", "WTP (Wajar Tanpa Pengecualian)")),
+            audit_opinion=str(data.get("audit_opinion", "Cukup Efektif dengan Catatan (Memadai)")),
             signed_at=str(data.get("signed_at", "")),
             comments=str(data.get("comments", "")),
             is_signed=bool(data.get("is_signed", False)),
+            signoff_type=str(data.get("signoff_type", "general")),
+            apip_conclusion=str(data.get("apip_conclusion", "")),
+            anggota_tim=str(data.get("anggota_tim", "")),
+            ketua_tim=str(data.get("ketua_tim", "")),
+            pengendali_teknis=str(data.get("pengendali_teknis", "")),
+            pengendali_mutu=str(data.get("pengendali_mutu", "")),
+            inspektur=str(data.get("inspektur", "")),
         )
 
 

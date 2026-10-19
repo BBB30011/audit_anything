@@ -18,7 +18,15 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from skill_audit.models import AuditPack, HumanSignOff, RiskLevel, UnknownItem, UnknownStatus
+from skill_audit.models import (
+    APIPConclusion,
+    AuditDomain,
+    AuditPack,
+    HumanSignOff,
+    RiskLevel,
+    UnknownItem,
+    UnknownStatus,
+)
 
 console = Console()
 
@@ -134,35 +142,92 @@ def run_interactive_triage(pack_path: str | Path) -> AuditPack:
                         console.print("[yellow]⚠ Inquiry Diterima/Dilepas (Waived).[/]")
 
     # 3. Formal Human Sign-Off
-    if Confirm.ask("\nApakah Anda ingin menandatangani pengesahan formal LHA (Human Sign-Off)?", default=True):
-        name = Prompt.ask("Nama Auditor Penanggung Jawab", default="Drs. Bambang Wijaya, Ak., CA, CPA")
-        role = Prompt.ask("Jabatan Auditor", default="Lead Internal Auditor")
-        nip = Prompt.ask("Nomor Registrasi Akuntan / NIP", default="NIP-19850412-201001-1-003")
-        opinion = Prompt.ask(
-            "Opini / Kesimpulan Audit",
-            choices=[
-                "WTP (Wajar Tanpa Pengecualian)",
-                "WDP (Wajar Dengan Pengecualian)",
-                "Tidak Wajar (Adverse)",
-                "Menolak Memberikan Opini (Disclaimer)",
-            ],
-            default="WDP (Wajar Dengan Pengecualian)",
-        )
-        comments = Prompt.ask(
-            "Catatan Akhir Auditor",
-            default="Pengendalian internal cukup memadai dengan catatan perbaikan kepatuhan kontrak dan administrasi perpajakan.",
-        )
+    is_apip = (
+        pack.domain == AuditDomain.GOVERNMENT
+        or pack.human_sign_off.signoff_type == "aaipi"
+        or bool(pack.human_sign_off.apip_conclusion)
+        or any("saaipi" in str(r).lower() or "apip" in str(r).lower() for r in pack.terrain_profile.detected_regulations)
+        or any("saaipi" in d.content.lower() or "apip" in d.content.lower() for d in pack.documents)
+    )
 
-        pack.human_sign_off = HumanSignOff(
-            reviewer_name=name,
-            reviewer_role=role,
-            reviewer_license_or_nip=nip,
-            audit_opinion=opinion,
-            signed_at=datetime.now(timezone.utc).strftime("%d %B %Y, %H:%M UTC"),
-            comments=comments,
-            is_signed=True,
-        )
-        console.print(f"[bold green]✓ Berhasil ditandatangani oleh {name} dengan opini: {opinion}[/]")
+    if Confirm.ask("\nApakah Anda ingin menandatangani pengesahan formal LHA (Human Sign-Off)?", default=True):
+        if is_apip:
+            console.print(Panel(
+                "[bold cyan]Pengesahan Pengawasan Intern APIP (Standar SAAIPI PER-01/AAIPI/DPN/2021)[/]\n"
+                "• Peran: [bold]Mitra Strategis & Early Warning System[/]\n"
+                "• Menghasilkan: [bold]Simpulan Efektivitas 3 Pilar SPIP (Tata Kelola, Risiko, Kontrol)[/]\n"
+                "• [dim]*Catatan: Bukan opini judisial eksternal BPK RI (WTP/WDP/TW/TMP)*[/]",
+                border_style="cyan",
+            ))
+            conclusion = Prompt.ask(
+                "Simpulan Pengawasan APIP (SAAIPI 2400 / PP 60/2008 SPIP)",
+                choices=[
+                    "Sangat Efektif (Tata Kelola, Risiko, & SPIP Berjalan Prima)",
+                    "Cukup Efektif dengan Catatan (SPIP Memadai, Rekomendasi Bersifat Perbaikan)",
+                    "Kurang Efektif (Memerlukan Perbaikan Signifikan pada Tata Kelola/Pengendalian)",
+                    "Tidak Efektif (Berisiko Kritis, Pengendalian Intern Gagal Mengatasi Risiko)",
+                    "Pernyataan Telah Direviu (Reviu LK / Negative Assurance)",
+                    "Advis Strategis Tata Kelola (Consulting Advisory)",
+                ],
+                default="Cukup Efektif dengan Catatan (SPIP Memadai, Rekomendasi Bersifat Perbaikan)",
+            )
+            at = Prompt.ask("Nama & NIP Anggota Tim (AT)", default=pack.human_sign_off.anggota_tim or "Tim Auditor Pertama / Muda")
+            kt = Prompt.ask("Nama & NIP Ketua Tim (KT)", default=pack.human_sign_off.ketua_tim or "Drs. Bambang Wijaya, Ak., CA, CRMO (NIP 19820514 200801 1 008)")
+            dalnis = Prompt.ask("Nama & NIP Pengendali Teknis (Dalnis)", default=pack.human_sign_off.pengendali_teknis or "Dr. Suryadi, Ak., M.Ak, CIA, CGCAE (NIP 19760910 200003 1 002)")
+            pm = Prompt.ask("Nama & NIP Pengendali Mutu / Irban (PM)", default=pack.human_sign_off.pengendali_mutu or "Hj. Ratna Sari, SE., M.Si, QGIA (NIP 19741201 199903 2 001)")
+            inspektur = Prompt.ask("Nama & NIP Inspektur (Pimpinan APIP)", default=pack.human_sign_off.inspektur or "Ir. Mochammad Hidayat, M.M., CRGP (NIP 19680315 199303 1 005)")
+            comments = Prompt.ask(
+                "Catatan & Arahan Supervisi Pengawasan Intern",
+                default="Pengendalian intern dan tata kelola pengadaan dinilai cukup memadai dengan rekomendasi percepatan pengenaan sanksi denda dan tertib administrasi.",
+            )
+
+            pack.human_sign_off = HumanSignOff(
+                reviewer_name=kt,
+                reviewer_role="Ketua Tim Pengawasan Intern APIP",
+                reviewer_license_or_nip="",
+                audit_opinion=conclusion,
+                signed_at=datetime.now(timezone.utc).strftime("%d %B %Y, %H:%M UTC"),
+                comments=comments,
+                is_signed=True,
+                signoff_type="aaipi",
+                apip_conclusion=conclusion,
+                anggota_tim=at,
+                ketua_tim=kt,
+                pengendali_teknis=dalnis,
+                pengendali_mutu=pm,
+                inspektur=inspektur,
+            )
+            console.print(f"[bold green]✓ LHA APIP berhasil disahkan oleh {kt} dengan simpulan: {conclusion}[/]")
+        else:
+            name = Prompt.ask("Nama Auditor Penanggung Jawab", default="Drs. Bambang Wijaya, Ak., CA, CPA")
+            role = Prompt.ask("Jabatan Auditor", default="Lead Internal Auditor")
+            nip = Prompt.ask("Nomor Registrasi Akuntan / Lisensi", default="NIP-19850412-201001-1-003")
+            opinion = Prompt.ask(
+                "Simpulan Pengendalian Internal",
+                choices=[
+                    "Adequate / Satisfactory (Pengendalian Internal Efektif)",
+                    "Adequate with Improvements (Memadai dengan Catatan)",
+                    "Needs Significant Improvement (Perlu Perbaikan Signifikan)",
+                    "Unsatisfactory (Tidak Memadai)",
+                ],
+                default="Adequate with Improvements (Memadai dengan Catatan)",
+            )
+            comments = Prompt.ask(
+                "Catatan Akhir Auditor",
+                default="Pengendalian internal cukup memadai dengan beberapa catatan koreksi administratif.",
+            )
+
+            pack.human_sign_off = HumanSignOff(
+                reviewer_name=name,
+                reviewer_role=role,
+                reviewer_license_or_nip=nip,
+                audit_opinion=opinion,
+                signed_at=datetime.now(timezone.utc).strftime("%d %B %Y, %H:%M UTC"),
+                comments=comments,
+                is_signed=True,
+                signoff_type="general",
+            )
+            console.print(f"[bold green]✓ Berhasil ditandatangani oleh {name} dengan simpulan: {opinion}[/]")
 
     # Save updated pack
     pack.to_yaml(p_path)
